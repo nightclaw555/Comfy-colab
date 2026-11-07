@@ -30,8 +30,8 @@ export default function StudioDashboard() {
   isProcessingRef.current = isProcessing;
 
   useEffect(() => {
-    const savedComfy = localStorage.getItem('comfy_url') || 'https://comfy-api.ayaigaldie.site';
-    const savedSidecar = localStorage.getItem('sidecar_url') || 'https://sidecar.ayaigaldie.site';
+    const savedComfy = localStorage.getItem('comfy_url') || 'http://127.0.0.1:8188';
+    const savedSidecar = localStorage.getItem('sidecar_url') || 'http://127.0.0.1:8189';
     if (savedComfy || savedSidecar) {
       setConnection((prev) => ({
         ...prev,
@@ -512,6 +512,7 @@ export default function StudioDashboard() {
           isSidecarConnected={connection.isSidecarConnected}
           onEmergencyShutdown={handleTriggerKillSwitch}
           activeJobCount={isProcessing ? 1 : 0}
+          isLocal={connection.comfyUrl.includes('127.0.0.1') || connection.comfyUrl.includes('localhost')}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

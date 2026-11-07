@@ -8,6 +8,7 @@ interface CreditMonitorProps {
   isSidecarConnected: boolean;
   onEmergencyShutdown: () => void;
   activeJobCount: number;
+  isLocal?: boolean;
 }
 
 export const CreditMonitor: React.FC<CreditMonitorProps> = ({
@@ -15,6 +16,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   isSidecarConnected,
   onEmergencyShutdown,
   activeJobCount,
+  isLocal = false,
 }) => {
   const TOTAL_MONTHLY_CREDITS = 200;
   const RATE_PER_HOUR = 12.5; // Average Colab A100 consumption rate
@@ -50,16 +52,18 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   const remainingCredits = Math.max(0, TOTAL_MONTHLY_CREDITS - totalConsumedCredits);
   const costPerVideo = 0.28; // Avg cost with MiniMax Turbo 8-step (~75s render)
   const estimatedVideosLeft = Math.floor(remainingCredits / costPerVideo);
-  const isIdle = isConnected && activeJobCount === 0 && sessionSeconds > 300; // Idle for > 5 min
+  const isIdle = !isLocal && isConnected && activeJobCount === 0 && sessionSeconds > 300; // Idle for > 5 min
 
   return (
     <div className="bg-studio-900 border border-studio-800 rounded-xl p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-center space-x-2">
-          <Zap className="w-4 h-4 text-amber-400" />
-          <h3 className="text-sm font-semibold text-white">Colab Pro A100 Credit Guard</h3>
-          <span className="text-[11px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-            200 Units/Month Plan
+          <Zap className={`w-4 h-4 ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <h3 className="text-sm font-semibold text-white">
+            {isLocal ? 'Local GPU Studio Monitor' : 'Colab Pro A100 Credit Guard'}
+          </h3>
+          <span className={`text-[11px] px-2 py-0.5 rounded border ${isLocal ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
+            {isLocal ? 'Unlimited Free Local Compute' : '200 Units/Month Plan'}
           </span>
         </div>
 
@@ -82,22 +86,22 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
             {isConnected ? formatTime(sessionSeconds) : '0m 00s'}
           </div>
           <div className="text-[10px] text-gray-500 mt-0.5">
-            {isConnected ? '12.5 Units / hr rate' : 'Stopped'}
+            {isConnected ? (isLocal ? 'Local Hardware' : '12.5 Units / hr rate') : 'Stopped'}
           </div>
         </div>
 
         {/* Units Used */}
         <div className="bg-studio-950 p-3 rounded-lg border border-studio-800">
           <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>Session Consumed</span>
+            <Zap className={`w-3.5 h-3.5 ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`} />
+            <span>{isLocal ? 'Cost / Credits' : 'Session Consumed'}</span>
           </div>
-          <div className="text-base font-bold text-amber-400 font-mono">
-            {totalConsumedCredits.toFixed(3)}{' '}
-            <span className="text-xs text-gray-400 font-normal">units</span>
+          <div className={`text-base font-bold font-mono ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {isLocal ? '0.00' : totalConsumedCredits.toFixed(3)}{' '}
+            <span className="text-xs text-gray-400 font-normal">{isLocal ? 'THB (Free)' : 'units'}</span>
           </div>
           <div className="text-[10px] text-gray-500 mt-0.5">
-            ~${(totalConsumedCredits * 0.1).toFixed(2)} USD value
+            {isLocal ? '100% Free on Local GPU' : `~$${(totalConsumedCredits * 0.1).toFixed(2)} USD value`}
           </div>
         </div>
 
@@ -105,29 +109,28 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
         <div className="bg-studio-950 p-3 rounded-lg border border-studio-800">
           <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
             <Film className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Remaining Potential</span>
+            <span>Generation Quota</span>
           </div>
           <div className="text-base font-bold text-emerald-400 font-mono">
-            ~{estimatedVideosLeft}{' '}
-            <span className="text-xs text-gray-400 font-normal">clips</span>
+            {isLocal ? '∞ Unlimited' : `~${estimatedVideosLeft} clips`}
           </div>
           <div className="text-[10px] text-gray-500 mt-0.5">
             MiniMax Turbo (6-8 steps)
           </div>
         </div>
 
-        {/* Safety Kill Switch Status */}
+        {/* Safety Status */}
         <div className="bg-studio-950 p-3 rounded-lg border border-studio-800 flex flex-col justify-between">
           <div>
             <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Zero-Idle Protection</span>
+              <span>{isLocal ? 'Sidecar Status' : 'Zero-Idle Protection'}</span>
             </div>
             <div className="text-xs text-gray-300 font-medium">
-              {isSidecarConnected ? 'Auto-Disconnect Ready' : 'Sidecar Offline'}
+              {isSidecarConnected ? (isLocal ? 'Local Sidecar Online' : 'Auto-Disconnect Ready') : 'Sidecar Offline'}
             </div>
           </div>
-          {isConnected && isSidecarConnected && (
+          {isConnected && isSidecarConnected && !isLocal && (
             <button
               onClick={onEmergencyShutdown}
               className="mt-2 text-[11px] py-1 px-2 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium text-center transition"
