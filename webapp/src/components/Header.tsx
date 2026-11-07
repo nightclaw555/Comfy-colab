@@ -21,8 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const isLocal = connection.comfyUrl?.includes('127.0.0.1') || connection.comfyUrl?.includes('localhost');
   const [showSettings, setShowSettings] = useState(false);
-  const [comfyInput, setComfyInput] = useState(connection.comfyUrl || 'http://127.0.0.1:8188');
-  const [sidecarInput, setSidecarInput] = useState(connection.sidecarUrl || 'http://127.0.0.1:8189');
+  const [comfyInput, setComfyInput] = useState(connection.comfyUrl || 'https://comfy-api.ayaigaldie.site');
+  const [sidecarInput, setSidecarInput] = useState(connection.sidecarUrl || 'https://sidecar.ayaigaldie.site');
 
   useEffect(() => {
     if (connection.comfyUrl) setComfyInput(connection.comfyUrl);

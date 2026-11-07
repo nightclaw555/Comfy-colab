@@ -30,8 +30,8 @@ export default function StudioDashboard() {
   isProcessingRef.current = isProcessing;
 
   useEffect(() => {
-    const savedComfy = localStorage.getItem('comfy_url') || 'http://127.0.0.1:8188';
-    const savedSidecar = localStorage.getItem('sidecar_url') || 'http://127.0.0.1:8189';
+    const savedComfy = localStorage.getItem('comfy_url') || 'https://comfy-api.ayaigaldie.site';
+    const savedSidecar = localStorage.getItem('sidecar_url') || 'https://sidecar.ayaigaldie.site';
     if (savedComfy || savedSidecar) {
       setConnection((prev) => ({
         ...prev,
