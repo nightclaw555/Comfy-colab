@@ -33,6 +33,7 @@ app.add_middleware(
 
 START_TIME = time.time()
 OUTPUT_DIR = os.environ.get("COMFY_OUTPUT_DIR", "/content/ComfyUI/output")
+GDRIVE_DEST_DIR = os.environ.get("GDRIVE_OUTPUT_DIR", "/content/drive/MyDrive/ComfyUI_Studio/outputs")
 RCLONE_CONF_PATH = os.environ.get("RCLONE_CONF_PATH", "/content/rclone.conf")
 RCLONE_REMOTE_DEST = os.environ.get("RCLONE_REMOTE_DEST", "mygdrive:ComfyUI_Studio/outputs")
 _SYNCED_FILES: dict[str, tuple[int, float]] = {}
@@ -40,58 +41,75 @@ _SYNC_LOCK = threading.Lock()
 
 
 def sync_outputs_to_gdrive(force_all: bool = False):
-    """Push newly rendered videos/images from Colab SSD to Google Drive (mygdrive:ComfyUI_Studio/outputs) via Rclone."""
-    if not os.path.exists(RCLONE_CONF_PATH) or not os.path.exists(OUTPUT_DIR):
-        return
-    if not shutil.which("rclone"):
+    """Sync newly rendered videos/images from Colab SSD to Google Drive (both native Drive mount & Rclone)."""
+    if not os.path.exists(OUTPUT_DIR):
         return
 
     with _SYNC_LOCK:
-        try:
-            if force_all:
-                subprocess.run(
-                    [
-                        "rclone", "copy", OUTPUT_DIR, RCLONE_REMOTE_DEST,
-                        "--config", RCLONE_CONF_PATH,
-                        "--transfers", "8",
-                        "--drive-chunk-size", "128M",
-                        "--include", "*.{mp4,webm,mkv,png,jpg,jpeg,webp}",
-                        "--quiet"
-                    ],
-                    timeout=60,
-                    check=False
-                )
-                return
+        # 1. Native Google Drive Mount Sync (/content/drive/MyDrive/ComfyUI_Studio/outputs)
+        if os.path.exists("/content/drive/MyDrive"):
+            try:
+                os.makedirs(GDRIVE_DEST_DIR, exist_ok=True)
+                for fname in os.listdir(OUTPUT_DIR):
+                    if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
+                        continue
+                    src_f = os.path.join(OUTPUT_DIR, fname)
+                    dst_f = os.path.join(GDRIVE_DEST_DIR, fname)
+                    if os.path.isfile(src_f):
+                        src_stat = os.stat(src_f)
+                        if src_stat.st_size > 1024 and (time.time() - src_stat.st_mtime) >= 1.0:
+                            if not os.path.exists(dst_f) or os.stat(dst_f).st_size != src_stat.st_size:
+                                shutil.copy2(src_f, dst_f)
+                                print(f"[Google Drive Auto-Sync] Saved {fname} ({src_stat.st_size / (1024*1024):.2f} MB) -> {dst_f}")
+            except Exception as e:
+                print(f"[Google Drive Auto-Sync] Warning: {e}")
 
-            for fname in os.listdir(OUTPUT_DIR):
-                if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
-                    continue
-                fpath = os.path.join(OUTPUT_DIR, fname)
-                if not os.path.isfile(fpath):
-                    continue
-                stat = os.stat(fpath)
-                # Ensure file is non-empty and finished writing (at least 1.5s old)
-                if stat.st_size < 1024 or (time.time() - stat.st_mtime) < 1.5:
-                    continue
-                sig = (stat.st_size, stat.st_mtime)
-                if _SYNCED_FILES.get(fname) == sig:
-                    continue
+        # 2. Rclone Sync (if configured)
+        if os.path.exists(RCLONE_CONF_PATH) and shutil.which("rclone"):
+            try:
+                if force_all:
+                    subprocess.run(
+                        [
+                            "rclone", "copy", OUTPUT_DIR, RCLONE_REMOTE_DEST,
+                            "--config", RCLONE_CONF_PATH,
+                            "--transfers", "8",
+                            "--drive-chunk-size", "128M",
+                            "--include", "*.{mp4,webm,mkv,png,jpg,jpeg,webp}",
+                            "--quiet"
+                        ],
+                        timeout=60,
+                        check=False
+                    )
+                    return
 
-                res = subprocess.run(
-                    [
-                        "rclone", "copyto", fpath, f"{RCLONE_REMOTE_DEST}/{fname}",
-                        "--config", RCLONE_CONF_PATH,
-                        "--drive-chunk-size", "128M",
-                        "--quiet"
-                    ],
-                    timeout=45,
-                    check=False
-                )
-                if res.returncode == 0:
-                    _SYNCED_FILES[fname] = sig
-                    print(f"[Rclone Auto-Sync] Synced {fname} ({stat.st_size / (1024*1024):.2f} MB) -> {RCLONE_REMOTE_DEST}")
-        except Exception as e:
-            print(f"[Rclone Auto-Sync] Warning: {e}")
+                for fname in os.listdir(OUTPUT_DIR):
+                    if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
+                        continue
+                    fpath = os.path.join(OUTPUT_DIR, fname)
+                    if not os.path.isfile(fpath):
+                        continue
+                    stat = os.stat(fpath)
+                    if stat.st_size < 1024 or (time.time() - stat.st_mtime) < 1.5:
+                        continue
+                    sig = (stat.st_size, stat.st_mtime)
+                    if _SYNCED_FILES.get(fname) == sig:
+                        continue
+
+                    res = subprocess.run(
+                        [
+                            "rclone", "copyto", fpath, f"{RCLONE_REMOTE_DEST}/{fname}",
+                            "--config", RCLONE_CONF_PATH,
+                            "--drive-chunk-size", "128M",
+                            "--quiet"
+                        ],
+                        timeout=45,
+                        check=False
+                    )
+                    if res.returncode == 0:
+                        _SYNCED_FILES[fname] = sig
+                        print(f"[Rclone Auto-Sync] Synced {fname} ({stat.st_size / (1024*1024):.2f} MB) -> {RCLONE_REMOTE_DEST}")
+            except Exception as e:
+                print(f"[Rclone Auto-Sync] Warning: {e}")
 
 
 def _rclone_watcher_daemon():
