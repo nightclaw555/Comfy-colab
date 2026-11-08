@@ -33,7 +33,7 @@ function prepareMiniMaxCommon(config: PromptConfig) {
   let safeWidth = Math.floor(config.width / 32) * 32;
   let safeHeight = Math.floor(config.height / 32) * 32;
   if (safeWidth > 1344) safeWidth = 1344;
-  if (safeHeight > 768) safeHeight = 768;
+  if (safeHeight > 1344) safeHeight = 1344;
 
   // MiniMax H3 frame length constraint: (17k + 5) grid at 24fps
   // 56 frames (~2.3s), 73 frames (~3.0s), 124 frames (~5.1s), 243 frames (~10.1s Single-Pass), 362 frames (~15.1s Single-Pass)
@@ -187,7 +187,7 @@ function buildTikTokWorkflow(config: PromptConfig): Record<string, any> {
   };
 
   // Image-to-Video: Product or model reference
-  if (config.mode === 'i2v' && config.inputImageFilename) {
+  if (config.mode === 'i2v' && config.inputImageFilename && config.inputImageFilename.trim() !== '' && config.inputImageFilename !== 'input.png') {
     graph["140"] = {
       "class_type": "LoadImage",
       "inputs": {
@@ -349,7 +349,7 @@ function buildNsfwMotionWorkflow(config: PromptConfig): Record<string, any> {
   };
 
   // Attach Character Reference Image
-  if (config.inputImageFilename) {
+  if (config.mode === 'i2v' && config.inputImageFilename && config.inputImageFilename.trim() !== '' && config.inputImageFilename !== 'input.png') {
     graph["140"] = {
       "class_type": "LoadImage",
       "inputs": {
@@ -521,7 +521,7 @@ function buildMusicVideoWorkflow(config: PromptConfig): Record<string, any> {
   };
 
   // Optional First Frame for MV opening shot
-  if (config.mode === 'i2v' && config.inputImageFilename) {
+  if (config.mode === 'i2v' && config.inputImageFilename && config.inputImageFilename.trim() !== '' && config.inputImageFilename !== 'input.png') {
     graph["140"] = {
       "class_type": "LoadImage",
       "inputs": {

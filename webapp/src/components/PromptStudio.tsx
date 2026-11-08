@@ -137,8 +137,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
   );
 
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('9:16');
-  const [width, setWidth] = useState(512);
-  const [height, setHeight] = useState(768);
+  const [width, setWidth] = useState(576);
+  const [height, setHeight] = useState(1024);
   const [frames, setFrames] = useState(56);
   const [steps, setSteps] = useState(8);
   const [cfg, setCfg] = useState(2.0);
@@ -158,7 +158,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
 
   // File uploads & Web URL states
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [inputImageFilename, setInputImageFilename] = useState<string>('input.png');
+  const [inputImageFilename, setInputImageFilename] = useState<string>('');
   const [imageSourceMode, setImageSourceMode] = useState<'file' | 'url'>('file');
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [isFetchingImage, setIsFetchingImage] = useState(false);
@@ -261,8 +261,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
 
     if (newMode === 'tiktok') {
       setAspectRatio('9:16');
-      setWidth(512);
-      setHeight(768);
+      setWidth(576);
+      setHeight(1024);
       setFrames(56);
       setSteps(8);
       setCfg(2.0);
@@ -271,8 +271,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setMode('i2v'); // Usually TikTok starts with product image
     } else if (newMode === 'nsfw_motion') {
       setAspectRatio('9:16');
-      setWidth(512);
-      setHeight(768);
+      setWidth(576);
+      setHeight(1024);
       setFrames(56);
       setSteps(8);
       setCfg(2.0);
@@ -282,8 +282,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setMode('i2v');
     } else if (newMode === 'music_video') {
       setAspectRatio('16:9');
-      setWidth(768);
-      setHeight(512);
+      setWidth(1024);
+      setHeight(576);
       setFrames(73); // ~3 seconds @ 24fps
       setSteps(8);
       setCfg(2.0);
@@ -296,11 +296,11 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
   const handleAspectChange = (ratio: '16:9' | '9:16' | '1:1') => {
     setAspectRatio(ratio);
     if (ratio === '16:9') {
-      setWidth(768);
-      setHeight(512);
+      setWidth(1024);
+      setHeight(576);
     } else if (ratio === '9:16') {
-      setWidth(512);
-      setHeight(768);
+      setWidth(576);
+      setHeight(1024);
     } else {
       setWidth(768);
       setHeight(768);
@@ -313,7 +313,55 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setInputImageFilename(file.name);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        const rawDataUrl = reader.result as string;
+
+        // Auto-detect aspect ratio & compress/resize image to prevent Vercel 4.5MB payload limit
+        const img = new Image();
+        img.onload = () => {
+          const naturalW = img.naturalWidth || 1024;
+          const naturalH = img.naturalHeight || 1024;
+          const r = naturalW / naturalH;
+          if (r < 0.75) {
+            setAspectRatio('9:16');
+            setWidth(576);
+            setHeight(1024);
+          } else if (r > 1.35) {
+            setAspectRatio('16:9');
+            setWidth(1024);
+            setHeight(576);
+          } else {
+            setAspectRatio('1:1');
+            setWidth(768);
+            setHeight(768);
+          }
+
+          // If image is high-res (e.g. > 1536px) or large, resize via Canvas to keep it lightweight (~300-600KB)
+          const MAX_DIM = 1536;
+          let targetW = naturalW;
+          let targetH = naturalH;
+          if (targetW > MAX_DIM || targetH > MAX_DIM) {
+            if (targetW > targetH) {
+              targetH = Math.round((targetH * MAX_DIM) / targetW);
+              targetW = MAX_DIM;
+            } else {
+              targetW = Math.round((targetW * MAX_DIM) / targetH);
+              targetH = MAX_DIM;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            setImagePreview(optimizedDataUrl);
+          } else {
+            setImagePreview(rawDataUrl);
+          }
+        };
+        img.src = rawDataUrl;
       };
       reader.readAsDataURL(file);
     }
@@ -347,6 +395,27 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       }
       setImagePreview(data.dataUrl);
       setInputImageFilename(data.filename || 'url_image.png');
+
+      const img = new Image();
+      img.onload = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          const r = img.naturalWidth / img.naturalHeight;
+          if (r < 0.75) {
+            setAspectRatio('9:16');
+            setWidth(576);
+            setHeight(1024);
+          } else if (r > 1.35) {
+            setAspectRatio('16:9');
+            setWidth(1024);
+            setHeight(576);
+          } else {
+            setAspectRatio('1:1');
+            setWidth(768);
+            setHeight(768);
+          }
+        }
+      };
+      img.src = data.dataUrl;
     } catch (err: any) {
       setImageFetchError(err.message || 'Error fetching image');
     } finally {
@@ -379,7 +448,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
 
   const handleClearImage = () => {
     setImagePreview(null);
-    setInputImageFilename('input.png');
+    setInputImageFilename('');
     setImageUrlInput('');
     setImageFetchError(null);
   };
@@ -456,6 +525,10 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
   };
 
   const handleQueueWithTranslation = async (autoStart: boolean) => {
+    if (mode === 'i2v' && !imagePreview) {
+      alert('⚠️ คุณเลือกโหมด Image-to-Video แต่ยังไม่ได้เลือกหรืออัปโหลดรูปภาพต้นแบบครับ\n\nกรุณาอัปโหลดรูปภาพสินค้า/นางแบบ หรือคลิกสลับไปที่โหมด Text-to-Video ก่อนเริ่มรันครับ');
+      return;
+    }
     let finalPrompt = positivePrompt;
     let finalAudio = audioPrompt;
     const originalThaiP = containsThai(positivePrompt) ? positivePrompt : undefined;
@@ -520,7 +593,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
         turboLoraStrength,
         uncensoredLoraStrength,
         inputImageBase64: mode === 'i2v' ? imagePreview || undefined : undefined,
-        inputImageFilename: mode === 'i2v' ? inputImageFilename : undefined,
+        inputImageFilename: mode === 'i2v' && imagePreview ? inputImageFilename : undefined,
         referenceVideoBase64: taskMode === 'nsfw_motion' ? referenceVideoPreview || undefined : undefined,
         referenceVideoFilename: taskMode === 'nsfw_motion' && referenceVideoPreview ? referenceVideoFilename : undefined,
         originalThaiPrompt: originalThaiP,
@@ -538,7 +611,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       const segCount = Math.floor(totalDuration / 5);
       const storyGroupId = `story_${Date.now()}`;
 
-      const masterAnchorFilename = mode === 'i2v' ? inputImageFilename : undefined;
+      const masterAnchorFilename = mode === 'i2v' && imagePreview ? inputImageFilename : undefined;
       const masterAnchorBase64 = mode === 'i2v' ? (imagePreview || undefined) : undefined;
 
       const CINEMATIC_ANGLES = [
@@ -581,7 +654,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
           turboLoraStrength,
           uncensoredLoraStrength,
           inputImageBase64: s === 1 ? (mode === 'i2v' ? imagePreview || undefined : undefined) : (lockMasterCharacter ? masterAnchorBase64 : undefined),
-          inputImageFilename: s === 1 ? (mode === 'i2v' ? inputImageFilename : undefined) : (lockMasterCharacter ? masterAnchorFilename : undefined),
+          inputImageFilename: s === 1 ? (mode === 'i2v' && imagePreview ? inputImageFilename : undefined) : (lockMasterCharacter ? masterAnchorFilename : undefined),
           masterAnchorImageBase64: lockMasterCharacter ? masterAnchorBase64 : undefined,
           masterAnchorImageFilename: lockMasterCharacter ? masterAnchorFilename : undefined,
           lockMasterCharacter,
@@ -618,7 +691,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
         turboLoraStrength,
         uncensoredLoraStrength,
         inputImageBase64: mode === 'i2v' ? imagePreview || undefined : undefined,
-        inputImageFilename: mode === 'i2v' ? inputImageFilename : undefined,
+        inputImageFilename: mode === 'i2v' && imagePreview ? inputImageFilename : undefined,
         referenceVideoBase64: taskMode === 'nsfw_motion' ? referenceVideoPreview || undefined : undefined,
         referenceVideoFilename: taskMode === 'nsfw_motion' && referenceVideoPreview ? referenceVideoFilename : undefined,
         originalThaiPrompt: originalThaiP,

@@ -220,6 +220,31 @@ export class ComfyApiClient {
    */
   static async uploadMedia(baseUrl: string, file: File, subfolder: string = ''): Promise<string> {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
+
+    // 1. Try direct upload first (bypasses Vercel 4.5MB payload limit completely if CORS is enabled)
+    try {
+      const directForm = new FormData();
+      directForm.append('image', file);
+      directForm.append('overwrite', 'true');
+      if (subfolder) directForm.append('subfolder', subfolder);
+
+      const directRes = await fetch(`${cleanUrl}/upload/image`, {
+        method: 'POST',
+        body: directForm,
+      });
+
+      if (directRes.ok) {
+        const data = await directRes.json();
+        if (data.subfolder && data.subfolder.trim() !== '') {
+          return `${data.subfolder}/${data.name}`;
+        }
+        return data.name || file.name;
+      }
+    } catch {
+      // Direct upload blocked by CORS or network, proceed to proxy fallback below
+    }
+
+    // 2. Proxy upload fallback via /api/proxy
     const formData = new FormData();
     formData.append('targetUrl', `${cleanUrl}/upload/image`);
     formData.append('image', file);
@@ -234,8 +259,14 @@ export class ComfyApiClient {
     });
 
     if (!res.ok) {
+      if (res.status === 413) {
+        throw new Error(`ไฟล์ (${file.name}) มีขนาดใหญ่เกินไป (> 4.5 MB) ซึ่งติดขีดจำกัดของ Vercel Cloud กรุณาลดขนาดไฟล์ภาพหรือวิดีโอก่อนอัปโหลดครับ`);
+      }
+      if (res.status === 401) {
+        throw new Error('เซสชันความปลอดภัยหมดอายุ กรุณารีเฟรชหน้าเว็บหรือเข้าสู่ระบบใหม่อีกครั้งครับ');
+      }
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Failed to upload media (${file.name}) to ComfyUI`);
+      throw new Error(errData.error || `ไม่สามารถอัปโหลดไฟล์ (${file.name}) ไปยัง ComfyUI ได้ (HTTP ${res.status})`);
     }
     const data = await res.json();
     if (data.subfolder && data.subfolder.trim() !== '') {

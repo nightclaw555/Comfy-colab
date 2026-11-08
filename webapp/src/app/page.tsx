@@ -163,6 +163,11 @@ export default function StudioDashboard() {
         let uploadedImageFilename = item.config.inputImageFilename;
         let uploadedVideoFilename = item.config.referenceVideoFilename;
 
+        // Check if Image-to-Video mode has an image
+        if (item.config.mode === 'i2v' && !uploadedImageFilename && !item.config.inputImageBase64) {
+          throw new Error('ไม่พบรูปภาพต้นแบบสำหรับโหมด Image-to-Video กรุณาอัปโหลดรูปภาพสินค้า/นางแบบ หรือสลับไปใช้โหมด Text-to-Video ครับ');
+        }
+
         // Auto-upload reference image if present (works on both Local PC & Google Colab)
         if (item.config.inputImageBase64) {
           setQueue((prev) =>

@@ -136,9 +136,21 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Emergency Kill Switch Button (Colab mode only) */}
           {connection.isConnected && !isLocal && (
             <button
-              onClick={onTriggerKillSwitch}
-              disabled={!connection.isSidecarConnected}
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white shadow-sm transition disabled:opacity-40"
+              onClick={() => {
+                if (!connection.isSidecarConnected) {
+                  alert(
+                    "⚠️ เซสชันนี้รันจากโค้ดเดิมใน Google Drive ทำให้ Sidecar Agent ออฟไลน์อยู่ จึงไม่สามารถตัดการเชื่อมต่ออัตโนมัติจากตรงนี้ได้ครับ\n\n💡 วิธีปิด Colab ทันทีเพื่อหยุดคิดเครดิต:\n1. สลับไปที่แท็บ Google Colab\n2. คลิกเมนูด้านบน: 'รันไทม์' (Runtime) -> เลือก 'ยกเลิกการเชื่อมต่อและลบรันไทม์' (Disconnect and delete runtime)\nโควต้าเครดิตจะหยุดคิดทันทีครับ!"
+                  );
+                  return;
+                }
+                onTriggerKillSwitch();
+              }}
+
+              className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition ${
+                connection.isSidecarConnected
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/30'
+                  : 'bg-rose-700/70 hover:bg-rose-600 text-rose-100 border border-rose-500/40'
+              }`}
               title="Unassign Colab Runtime immediately to save credit units"
             >
               <Power className="w-3.5 h-3.5" />

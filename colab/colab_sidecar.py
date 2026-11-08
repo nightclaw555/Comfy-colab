@@ -130,7 +130,7 @@ def get_gpu_info():
             "--format=csv,noheader,nounits"
         ]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-        line = res.stdout.strip().split("\n")[0]
+        line = res.stdout.strip().splitlines()[0]
         parts = [p.strip() for p in line.split(",")]
         return {
             "name": parts[0],

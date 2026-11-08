@@ -30,7 +30,11 @@ export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
   isRendering = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [logs, setLogs] = useState<string>('กำลังเชื่อมต่อเพื่ออ่าน Log จาก Google Colab...');
+  const [logs, setLogs] = useState<string>(
+    isSidecarConnected
+      ? 'กำลังเชื่อมต่อเพื่ออ่าน Log จาก Google Colab...'
+      : '💡 ComfyUI กำลังทำงานตามปกติ แต่ Sidecar Agent (พอร์ต 8189) ออฟไลน์อยู่ จึงยังไม่สามารถสตรีม Terminal Log หรือใช้ปุ่มตัดการเชื่อมต่ออัตโนมัติได้ครับ'
+  );
   const [totalLines, setTotalLines] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [recentErrors, setRecentErrors] = useState<string[]>([]);
@@ -45,7 +49,11 @@ export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
 
   // Fetch logs from sidecar
   const fetchLogs = async () => {
-    if (!sidecarUrl || !isSidecarConnected) return;
+    if (!isSidecarConnected) {
+      setLogs('💡 ComfyUI กำลังประมวลผลงานตามปกติ แต่ Sidecar Agent (พอร์ต 8189) ออฟไลน์อยู่ จึงยังไม่สามารถสตรีม Terminal Log ได้ในเซสชันนี้ครับ');
+      return;
+    }
+    if (!sidecarUrl) return;
 
     setIsLoading(true);
     try {
@@ -65,7 +73,11 @@ export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
 
   // Poll logs periodically: faster when rendering (2.5s), standard when open (5s)
   useEffect(() => {
-    if (!sidecarUrl || !isSidecarConnected) return;
+    if (!isSidecarConnected) {
+      setLogs('💡 ComfyUI กำลังประมวลผลงานตามปกติ แต่ Sidecar Agent (พอร์ต 8189) ออฟไลน์อยู่ จึงยังไม่สามารถสตรีม Terminal Log ได้ในเซสชันนี้ครับ');
+      return;
+    }
+    if (!sidecarUrl) return;
 
     // Initial fetch
     fetchLogs();

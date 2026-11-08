@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
       });
 
       const data = await response.json().catch(() => ({}));
+      if (!response.ok && !data.error) {
+        data.error = `ComfyUI returned status ${response.status} (${response.statusText || 'Upload failed'})`;
+      }
       return NextResponse.json(data, { status: response.status });
     }
 
