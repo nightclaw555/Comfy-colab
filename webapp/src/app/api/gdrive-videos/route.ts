@@ -4,20 +4,36 @@ import path from 'path';
 
 // Primary target: High-Speed Rclone Mounted Google Drive (G:\ComfyUI_Studio\outputs)
 // Fallback: Local project's "outputs" directory if G: is not mounted
-const GDRIVE_VIDEO_DIR = 'G:\\ComfyUI_Studio\\outputs';
 const FALLBACK_VIDEO_DIR = path.resolve(process.cwd(), '..', 'outputs');
 
 function resolveVideoDir(): string {
-  try {
-    if (fs.existsSync('G:\\')) {
-      if (!fs.existsSync(GDRIVE_VIDEO_DIR)) {
-        fs.mkdirSync(GDRIVE_VIDEO_DIR, { recursive: true });
+  // Check candidate Google Drive paths (including Google Drive for Desktop "My Drive")
+  const candidates = [
+    'G:\\My Drive\\ComfyUI_Studio\\outputs',
+    'G:\\MyDrive\\ComfyUI_Studio\\outputs',
+    'G:\\ComfyUI_Studio\\outputs',
+  ];
+
+  for (const targetDir of candidates) {
+    try {
+      const parent = path.dirname(targetDir);
+      if (fs.existsSync(parent)) {
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        return targetDir;
       }
-      return GDRIVE_VIDEO_DIR;
+    } catch {
+      continue;
     }
-  } catch {
-    // Fallback if G: is inaccessible
   }
+
+  // Fallback to local project's outputs folder
+  try {
+    if (!fs.existsSync(FALLBACK_VIDEO_DIR)) {
+      fs.mkdirSync(FALLBACK_VIDEO_DIR, { recursive: true });
+    }
+  } catch {}
   return FALLBACK_VIDEO_DIR;
 }
 
