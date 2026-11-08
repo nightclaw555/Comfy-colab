@@ -1,73 +1,75 @@
 # ====================================================================
-# 🚀 Bulletproof 1-Click Rclone & WinFsp Installer for Windows
+# Bulletproof 1-Click Rclone and WinFsp Installer for Windows
 # ====================================================================
 $ErrorActionPreference = 'Stop'
 
 Write-Host "====================================================================" -ForegroundColor Cyan
-Write-Host "  ☁️ ติดตั้งและเชื่อมต่อ Rclone Google Drive (Drive G:) อัตโนมัติ" -ForegroundColor Cyan
+Write-Host "  [Setup] Automated Rclone Google Drive (Drive G:) Installation" -ForegroundColor Cyan
 Write-Host "====================================================================" -ForegroundColor Cyan
 
-# 1. โฟลเดอร์ rclone
+# 1. Target directory
 $rcloneDir = "C:\rclone"
 if (!(Test-Path $rcloneDir)) {
     New-Item -ItemType Directory -Path $rcloneDir -Force | Out-Null
 }
 $rcloneExe = "$rcloneDir\rclone.exe"
 
-# 2. ดาวน์โหลด Rclone ตรงๆ จาก official release (ไม่ต้องง้อ winget)
+# 2. Download Rclone directly if not present
 if (!(Test-Path $rcloneExe)) {
-    Write-Host "`n[1/3] กำลังดาวน์โหลด Rclone ล่าสุด..." -ForegroundColor Yellow
+    Write-Host "`n[1/3] Downloading latest Rclone binary..." -ForegroundColor Yellow
     $zipPath = "$env:TEMP\rclone.zip"
     $rcloneUrl = "https://downloads.rclone.org/rclone-current-windows-amd64.zip"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $rcloneUrl -OutFile $zipPath -UseBasicParsing
 
-    Write-Host "กำลังแตกไฟล์ rclone.exe เข้าสู่ $rcloneDir..." -ForegroundColor Yellow
+    Write-Host "Extracting rclone.exe to $rcloneDir..." -ForegroundColor Yellow
     $extractPath = "$env:TEMP\rclone_temp"
     if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
     Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
     $found = Get-ChildItem -Path $extractPath -Filter "rclone.exe" -Recurse | Select-Object -First 1
     if ($found) {
         Copy-Item -Path $found.FullName -Destination $rcloneExe -Force
-        Write-Host "✅ ติดตั้ง $rcloneExe สำเร็จ!" -ForegroundColor Green
+        Write-Host "Installed: $rcloneExe" -ForegroundColor Green
     }
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
 } else {
-    Write-Host "`n[1/3] ✅ พบ Rclone อยู่แล้วที่ $rcloneExe" -ForegroundColor Green
+    Write-Host "`n[1/3] Rclone already installed at $rcloneExe" -ForegroundColor Green
 }
 
-# อัปเดต PATH
-$env:Path += ";$rcloneDir"
+# Update PATH
+if ($env:Path -notlike "*$rcloneDir*") {
+    $env:Path += ";$rcloneDir"
+}
 
-# 3. ติดตั้ง WinFsp (ไดรเวอร์จำเป็นสำหรับสร้างไดรฟ์ G:)
+# 3. Check and install WinFsp (required for Drive G: mount)
 $winfspInstalled = (Test-Path "C:\Program Files (x86)\WinFsp") -or (Test-Path "C:\Program Files\WinFsp")
 if (!$winfspInstalled) {
-    Write-Host "`n[2/3] กำลังดาวน์โหลดและติดตั้ง WinFsp (ไดรเวอร์ไดรฟ์เสมือน)..." -ForegroundColor Yellow
+    Write-Host "`n[2/3] Downloading and installing WinFsp driver..." -ForegroundColor Yellow
     $msiPath = "$env:TEMP\winfsp.msi"
     $winfspUrl = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
     Invoke-WebRequest -Uri $winfspUrl -OutFile $msiPath -UseBasicParsing
     Start-Process msiexec.exe -ArgumentList "/i `"$msiPath`" /qn /norestart" -Wait
     Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
-    Write-Host "✅ ติดตั้ง WinFsp สำเร็จ!" -ForegroundColor Green
+    Write-Host "WinFsp installed successfully!" -ForegroundColor Green
 } else {
-    Write-Host "`n[2/3] ✅ พบ WinFsp ติดตั้งอยู่ในเครื่องแล้ว" -ForegroundColor Green
+    Write-Host "`n[2/3] WinFsp driver already installed." -ForegroundColor Green
 }
 
-# 4. เรียกคำสั่งเชื่อมต่อ Google Drive
-Write-Host "`n[3/3] กำลังเปิดเบราว์เซอร์เพื่อเข้าสู่ระบบ Google Drive..." -ForegroundColor Cyan
-Write-Host "👉 เบราว์เซอร์ Chrome จะเปิดขึ้นมา กรุณาเลือกบัญชีและกด 'Allow' (อนุญาต)" -ForegroundColor Yellow
+# 4. Trigger Google Drive authentication
+Write-Host "`n[3/3] Opening browser for Google Drive login..." -ForegroundColor Cyan
+Write-Host "Please select your Google Account and click 'Allow' in the browser window..." -ForegroundColor Yellow
 Write-Host "--------------------------------------------------------------------" -ForegroundColor Gray
 
 & $rcloneExe config create mygdrive drive scope drive
 
 Write-Host "`n====================================================================" -ForegroundColor Green
-Write-Host "  🎉 เชื่อมต่อ Google Drive บัญชีของคุณเรียบร้อยแล้ว!" -ForegroundColor Green
-Write-Host "  กำลังเริ่ม Mount ไดรฟ์ G: เข้าสู่เครื่องของคุณ..." -ForegroundColor Green
+Write-Host "  Authentication successful!" -ForegroundColor Green
+Write-Host "  Mounting Google Drive to G: in the background..." -ForegroundColor Green
 Write-Host "====================================================================" -ForegroundColor Green
 
-# 5. เริ่มรัน Mount ไดรฟ์ G: ในโหมด Background
+# 5. Start mounting Drive G: in the background
 Start-Process -FilePath $rcloneExe -ArgumentList "mount mygdrive: G: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M" -WindowStyle Minimized
 
 Start-Sleep -Seconds 3
-Write-Host "`n✅ ไดรฟ์ G: เชื่อมต่อสำเร็จแล้ว! คุณสามารถเปิดดูใน This PC ได้เลยครับ" -ForegroundColor Cyan
+Write-Host "`nSUCCESS: Drive G: is now mounted and ready in This PC!" -ForegroundColor Green
