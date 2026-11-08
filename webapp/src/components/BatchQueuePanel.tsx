@@ -260,7 +260,7 @@ export const BatchQueuePanel: React.FC<BatchQueuePanelProps> = ({
                   {item.status === 'uploading' && (
                     <span className="flex items-center space-x-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px]">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Uploading Image</span>
+                      <span>Uploading Media...</span>
                     </span>
                   )}
                   {item.status === 'rendering' && (

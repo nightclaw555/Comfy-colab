@@ -26,6 +26,8 @@ import {
   Clock,
   Wand2,
   AlertTriangle,
+  Globe,
+  X,
 } from 'lucide-react';
 import { PromptConfig, GenerationMode, TaskMode, ExtensionStrategy, GenerationStyle } from '../types';
 
@@ -154,12 +156,20 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
   const [lockMasterCharacter, setLockMasterCharacter] = useState<boolean>(true);
   const [activeShotTab, setActiveShotTab] = useState<number>(0);
 
-  // File uploads
+  // File uploads & Web URL states
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [inputImageFilename, setInputImageFilename] = useState<string>('input.png');
+  const [imageSourceMode, setImageSourceMode] = useState<'file' | 'url'>('file');
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
+  const [imageFetchError, setImageFetchError] = useState<string | null>(null);
 
   const [referenceVideoPreview, setReferenceVideoPreview] = useState<string | null>(null);
   const [referenceVideoFilename, setReferenceVideoFilename] = useState<string>('');
+  const [videoSourceMode, setVideoSourceMode] = useState<'file' | 'url'>('file');
+  const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [isFetchingVideo, setIsFetchingVideo] = useState(false);
+  const [videoFetchError, setVideoFetchError] = useState<string | null>(null);
 
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [isTranslatingVisual, setIsTranslatingVisual] = useState(false);
@@ -319,6 +329,66 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleFetchImageFromUrl = async () => {
+    if (!imageUrlInput.trim()) return;
+    setIsFetchingImage(true);
+    setImageFetchError(null);
+    try {
+      const res = await fetch('/api/fetch-media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: imageUrlInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to fetch image from URL');
+      }
+      setImagePreview(data.dataUrl);
+      setInputImageFilename(data.filename || 'url_image.png');
+    } catch (err: any) {
+      setImageFetchError(err.message || 'Error fetching image');
+    } finally {
+      setIsFetchingImage(false);
+    }
+  };
+
+  const handleFetchVideoFromUrl = async () => {
+    if (!videoUrlInput.trim()) return;
+    setIsFetchingVideo(true);
+    setVideoFetchError(null);
+    try {
+      const res = await fetch('/api/fetch-media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: videoUrlInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to fetch video from URL');
+      }
+      setReferenceVideoPreview(data.dataUrl);
+      setReferenceVideoFilename(data.filename || 'url_video.mp4');
+    } catch (err: any) {
+      setVideoFetchError(err.message || 'Error fetching video');
+    } finally {
+      setIsFetchingVideo(false);
+    }
+  };
+
+  const handleClearImage = () => {
+    setImagePreview(null);
+    setInputImageFilename('input.png');
+    setImageUrlInput('');
+    setImageFetchError(null);
+  };
+
+  const handleClearVideo = () => {
+    setReferenceVideoPreview(null);
+    setReferenceVideoFilename('');
+    setVideoUrlInput('');
+    setVideoFetchError(null);
   };
 
   const translateSingleField = async (field: 'visual' | 'audio') => {
@@ -779,29 +849,104 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-studio-950/60 border border-studio-800">
           {/* First Frame / Character Image */}
           <div>
-            <label className="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
-              <Upload className="w-3.5 h-3.5 text-indigo-400" />
-              <span>
-                {taskMode === 'tiktok'
-                  ? 'รูปสินค้า / นางแบบตั้งต้น (First Frame)'
-                  : taskMode === 'nsfw_motion'
-                  ? 'รูปตัวละครอ้างอิง (Character Reference)'
-                  : 'ภาพเปิดซีนเริ่มต้น (First Frame)'}
-              </span>
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
-              />
-              {imagePreview && (
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                <Upload className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  {taskMode === 'tiktok'
+                    ? 'รูปสินค้า / นางแบบตั้งต้น (First Frame)'
+                    : taskMode === 'nsfw_motion'
+                    ? 'รูปตัวละครอ้างอิง (Character Reference)'
+                    : 'ภาพเปิดซีนเริ่มต้น (First Frame)'}
+                </span>
+              </label>
+
+              {/* Source Mode Toggle: Local File vs Web URL */}
+              <div className="flex items-center bg-studio-900 border border-studio-800 rounded-lg p-0.5 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setImageSourceMode('file')}
+                  className={`px-2 py-0.5 rounded ${
+                    imageSourceMode === 'file'
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  ไฟล์ในเครื่อง
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageSourceMode('url')}
+                  className={`px-2 py-0.5 rounded flex items-center gap-1 ${
+                    imageSourceMode === 'url'
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <Globe className="w-2.5 h-2.5" />
+                  <span>ลิงก์เว็บ URL</span>
+                </button>
+              </div>
+            </div>
+
+            {imageSourceMode === 'file' ? (
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleFetchImageFromUrl())}
+                  className="flex-1 bg-studio-900 border border-studio-800 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleFetchImageFromUrl}
+                  disabled={isFetchingImage || !imageUrlInput.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium flex items-center gap-1 shrink-0"
+                >
+                  {isFetchingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                  <span>นำเข้า</span>
+                </button>
+              </div>
+            )}
+
+            {imageFetchError && (
+              <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                <span>{imageFetchError}</span>
+              </p>
+            )}
+
+            {imagePreview && (
+              <div className="mt-2 flex items-center gap-3 p-2 rounded-lg bg-studio-900/80 border border-studio-800">
                 <div className="w-12 h-12 rounded-lg overflow-hidden border border-studio-700 shrink-0">
                   <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                 </div>
-              )}
-            </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-indigo-300 font-medium truncate">{inputImageFilename}</p>
+                  <p className="text-[10px] text-emerald-400">✓ รองรับทั้ง Local & Colab (Auto-upload)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearImage}
+                  className="p-1 rounded hover:bg-studio-800 text-gray-400 hover:text-rose-400"
+                  title="ลบรูปภาพ"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <p className="text-[11px] text-gray-500 mt-1">
               AI จะขยับฟิสิกส์ การเคลื่อนไหวของกล้อง และรายละเอียดต่อเนื่องจากภาพนี้
             </p>
@@ -810,23 +955,98 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
           {/* Reference Video (Only for NSFW Motion Mimic) */}
           {taskMode === 'nsfw_motion' && (
             <div>
-              <label className="block text-xs font-semibold text-rose-300 mb-1.5 flex items-center gap-1.5">
-                <Film className="w-3.5 h-3.5 text-rose-400" />
-                <span>คลิปวิดีโออ้างอิงท่าทาง (Motion Mimic Video - Optional)</span>
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm"
-                  onChange={handleVideoUpload}
-                  className="text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-rose-600 file:text-white hover:file:bg-rose-500 cursor-pointer"
-                />
-                {referenceVideoPreview && (
-                  <span className="text-[11px] text-rose-400 font-mono">
-                    ✓ {referenceVideoFilename}
-                  </span>
-                )}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-rose-300 flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-rose-400" />
+                  <span>คลิปวิดีโออ้างอิงท่าทาง (Motion Mimic Video)</span>
+                </label>
+
+                {/* Source Mode Toggle: Local File vs Web URL */}
+                <div className="flex items-center bg-studio-900 border border-studio-800 rounded-lg p-0.5 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceMode('file')}
+                    className={`px-2 py-0.5 rounded ${
+                      videoSourceMode === 'file'
+                        ? 'bg-rose-600 text-white font-medium'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    ไฟล์ในเครื่อง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoSourceMode('url')}
+                    className={`px-2 py-0.5 rounded flex items-center gap-1 ${
+                      videoSourceMode === 'url'
+                        ? 'bg-rose-600 text-white font-medium'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    <Globe className="w-2.5 h-2.5" />
+                    <span>ลิงก์เว็บ URL</span>
+                  </button>
+                </div>
               </div>
+
+              {videoSourceMode === 'file' ? (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm"
+                    onChange={handleVideoUpload}
+                    className="text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-rose-600 file:text-white hover:file:bg-rose-500 cursor-pointer"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/dance.mp4"
+                    value={videoUrlInput}
+                    onChange={(e) => setVideoUrlInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleFetchVideoFromUrl())}
+                    className="flex-1 bg-studio-900 border border-studio-800 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-rose-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchVideoFromUrl}
+                    disabled={isFetchingVideo || !videoUrlInput.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-medium flex items-center gap-1 shrink-0"
+                  >
+                    {isFetchingVideo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                    <span>นำเข้า</span>
+                  </button>
+                </div>
+              )}
+
+              {videoFetchError && (
+                <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{videoFetchError}</span>
+                </p>
+              )}
+
+              {referenceVideoPreview && (
+                <div className="mt-2 flex items-center gap-3 p-2 rounded-lg bg-studio-900/80 border border-studio-800">
+                  <div className="w-12 h-12 rounded-lg overflow-hidden border border-studio-700 shrink-0 bg-black flex items-center justify-center">
+                    <Film className="w-6 h-6 text-rose-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-rose-300 font-medium truncate">{referenceVideoFilename}</p>
+                    <p className="text-[10px] text-emerald-400">✓ รองรับทั้ง Local & Colab (Auto-upload)</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearVideo}
+                    className="p-1 rounded hover:bg-studio-800 text-gray-400 hover:text-rose-400"
+                    title="ลบคลิปวิดีโอ"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <p className="text-[11px] text-gray-500 mt-1">
                 (ไม่บังคับ) หากใส่คลิป ตัวละครด้านซ้ายจะทำท่าทาง เลียนแบบการขยับตามคลิปนี้
               </p>

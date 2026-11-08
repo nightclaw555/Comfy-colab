@@ -214,12 +214,19 @@ export class ComfyApiClient {
     return { finalVideoUrl, savedToDisk, localPath };
   }
 
-  static async uploadImage(baseUrl: string, file: File): Promise<string> {
+  /**
+   * Upload media file (Image or Video) to ComfyUI input directory.
+   * Works for both Local ComfyUI (127.0.0.1:8188) and Cloud/Colab (Cloudflare tunnel).
+   */
+  static async uploadMedia(baseUrl: string, file: File, subfolder: string = ''): Promise<string> {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const formData = new FormData();
     formData.append('targetUrl', `${cleanUrl}/upload/image`);
     formData.append('image', file);
     formData.append('overwrite', 'true');
+    if (subfolder) {
+      formData.append('subfolder', subfolder);
+    }
 
     const res = await fetch('/api/proxy', {
       method: 'POST',
@@ -227,9 +234,17 @@ export class ComfyApiClient {
     });
 
     if (!res.ok) {
-      throw new Error('Failed to upload image to ComfyUI');
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Failed to upload media (${file.name}) to ComfyUI`);
     }
     const data = await res.json();
+    if (data.subfolder && data.subfolder.trim() !== '') {
+      return `${data.subfolder}/${data.name}`;
+    }
     return data.name || file.name;
+  }
+
+  static async uploadImage(baseUrl: string, file: File): Promise<string> {
+    return this.uploadMedia(baseUrl, file);
   }
 }

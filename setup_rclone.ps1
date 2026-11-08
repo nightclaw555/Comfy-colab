@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 
 Write-Host "====================================================================" -ForegroundColor Cyan
-Write-Host "  [Setup] Automated Rclone Google Drive (Drive G:) Installation" -ForegroundColor Cyan
+Write-Host "  [Setup] Automated Rclone Google Drive (Drive X:) Installation" -ForegroundColor Cyan
 Write-Host "====================================================================" -ForegroundColor Cyan
 
 # 1. Target directory
@@ -42,7 +42,7 @@ if ($env:Path -notlike "*$rcloneDir*") {
     $env:Path += ";$rcloneDir"
 }
 
-# 3. Check and install WinFsp (required for Drive G: mount)
+# 3. Check and install WinFsp (required for Drive X: mount)
 $winfspInstalled = (Test-Path "C:\Program Files (x86)\WinFsp") -or (Test-Path "C:\Program Files\WinFsp")
 if (!$winfspInstalled) {
     Write-Host "`n[2/3] Downloading and installing WinFsp driver..." -ForegroundColor Yellow
@@ -65,11 +65,13 @@ Write-Host "--------------------------------------------------------------------
 
 Write-Host "`n====================================================================" -ForegroundColor Green
 Write-Host "  Authentication successful!" -ForegroundColor Green
-Write-Host "  Mounting Google Drive to Drive X: in the background..." -ForegroundColor Green
+Write-Host "  Mounting Google Drive to X: in the background..." -ForegroundColor Green
 Write-Host "====================================================================" -ForegroundColor Green
 
-# 5. Start mounting Drive X: in the background (X: is completely free and unassigned)
-Start-Process -FilePath $rcloneExe -ArgumentList "mount mygdrive: X: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M" -WindowStyle Minimized
+# 5. Start mounting Drive X: in the background
+Start-Process -FilePath $rcloneExe -ArgumentList "mount mygdrive: X: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M --volname \""Google Drive\""" -WindowStyle Hidden
 
 Start-Sleep -Seconds 3
-Write-Host "`nSUCCESS: Google Drive is now mounted as Drive X: in This PC!" -ForegroundColor Green
+Write-Host "`nSUCCESS: Drive X: is now mounted and ready in This PC!" -ForegroundColor Green
+
+

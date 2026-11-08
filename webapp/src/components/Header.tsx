@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
                 MiniMax-H3 <span className="text-indigo-400">Turbo Studio</span>
               </h1>
               <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${isLocal ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
-                {isLocal ? 'Local PC Mode' : 'A100 Pro'}
+                {isLocal ? 'Local PC Mode' : (connection.gpuStats?.name ? (connection.gpuStats.name.toLowerCase().includes('l4') ? 'Colab L4 Pro' : connection.gpuStats.name) : 'Colab GPU')}
               </span>
             </div>
             <p className="text-xs text-gray-400">Uncensored Audio-Video Studio Pipeline</p>
@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-xs font-medium">{isLocal ? 'Local ComfyUI Connected' : 'A100 Connected'}</span>
+                <span className="text-xs font-medium">{isLocal ? 'Local ComfyUI Connected' : (connection.gpuStats?.name ? `${connection.gpuStats.name} Connected` : 'GPU Connected')}</span>
               </div>
 
               {connection.gpuStats && connection.gpuStats.memory_total_mb > 0 && (
@@ -82,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <div className="flex items-center space-x-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg text-xs">
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>{isLocal ? 'Local ComfyUI Offline' : 'A100 Disconnected (Credits Safe)'}</span>
+              <span>{isLocal ? 'Local ComfyUI Offline' : 'Colab GPU Offline (Credits Safe)'}</span>
             </div>
           )}
 
@@ -142,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Unassign Colab Runtime immediately to save credit units"
             >
               <Power className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Kill Switch (A100)</span>
+              <span className="hidden sm:inline">Kill Switch ({connection.gpuStats?.name?.toLowerCase().includes('l4') ? 'L4' : 'Colab'})</span>
             </button>
           )}
         </div>

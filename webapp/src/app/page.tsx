@@ -161,21 +161,40 @@ export default function StudioDashboard() {
 
       try {
         let uploadedImageFilename = item.config.inputImageFilename;
+        let uploadedVideoFilename = item.config.referenceVideoFilename;
 
-        if (item.config.mode === 'i2v' && item.config.inputImageBase64) {
+        // Auto-upload reference image if present (works on both Local PC & Google Colab)
+        if (item.config.inputImageBase64) {
           setQueue((prev) =>
             prev.map((q) => (q.id === item.id ? { ...q, status: 'uploading' } : q))
           );
 
           const res = await fetch(item.config.inputImageBase64);
           const blob = await res.blob();
-          const file = new File([blob], `input_${item.id}.png`, { type: 'image/png' });
-          uploadedImageFilename = await ComfyApiClient.uploadImage(connection.comfyUrl, file);
+          const origName = item.config.inputImageFilename || 'input.png';
+          const ext = origName.split('.').pop()?.toLowerCase() || 'png';
+          const file = new File([blob], `input_${item.id}.${ext}`, { type: blob.type || 'image/png' });
+          uploadedImageFilename = await ComfyApiClient.uploadMedia(connection.comfyUrl, file);
+        }
+
+        // Auto-upload reference video if present (works on both Local PC & Google Colab)
+        if (item.config.referenceVideoBase64) {
+          setQueue((prev) =>
+            prev.map((q) => (q.id === item.id ? { ...q, status: 'uploading' } : q))
+          );
+
+          const res = await fetch(item.config.referenceVideoBase64);
+          const blob = await res.blob();
+          const origName = item.config.referenceVideoFilename || 'ref_motion.mp4';
+          const ext = origName.split('.').pop()?.toLowerCase() || 'mp4';
+          const file = new File([blob], `ref_motion_${item.id}.${ext}`, { type: blob.type || 'video/mp4' });
+          uploadedVideoFilename = await ComfyApiClient.uploadMedia(connection.comfyUrl, file);
         }
 
         const finalConfig = {
           ...item.config,
           inputImageFilename: uploadedImageFilename,
+          referenceVideoFilename: uploadedVideoFilename,
         };
 
         const promptGraph = buildComfyPrompt(finalConfig);

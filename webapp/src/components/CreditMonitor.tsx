@@ -9,6 +9,7 @@ interface CreditMonitorProps {
   onEmergencyShutdown: () => void;
   activeJobCount: number;
   isLocal?: boolean;
+  gpuName?: string;
 }
 
 export const CreditMonitor: React.FC<CreditMonitorProps> = ({
@@ -17,9 +18,12 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   onEmergencyShutdown,
   activeJobCount,
   isLocal = false,
+  gpuName = '',
 }) => {
   const TOTAL_MONTHLY_CREDITS = 200;
-  const RATE_PER_HOUR = 12.5; // Average Colab A100 consumption rate
+  const isL4 = gpuName.toLowerCase().includes('l4');
+  // L4 uses ~1.8 units/hr, A100 uses ~12.5 units/hr
+  const RATE_PER_HOUR = isL4 ? 1.8 : 12.5;
 
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [totalConsumedCredits, setTotalConsumedCredits] = useState(0);
@@ -40,7 +44,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
       setTotalConsumedCredits(0);
     }
     return () => clearInterval(timer);
-  }, [isConnected]);
+  }, [isConnected, RATE_PER_HOUR]);
 
   const formatTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -50,7 +54,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   };
 
   const remainingCredits = Math.max(0, TOTAL_MONTHLY_CREDITS - totalConsumedCredits);
-  const costPerVideo = 0.28; // Avg cost with MiniMax Turbo 8-step (~75s render)
+  const costPerVideo = isL4 ? 0.04 : 0.28; // L4 is ~7x cheaper per video
   const estimatedVideosLeft = Math.floor(remainingCredits / costPerVideo);
   const isIdle = !isLocal && isConnected && activeJobCount === 0 && sessionSeconds > 300; // Idle for > 5 min
 
@@ -60,10 +64,10 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
         <div className="flex items-center space-x-2">
           <Zap className={`w-4 h-4 ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`} />
           <h3 className="text-sm font-semibold text-white">
-            {isLocal ? 'Local GPU Studio Monitor' : 'Colab Pro A100 Credit Guard'}
+            {isLocal ? 'Local GPU Studio Monitor' : (isL4 ? 'Colab L4 Credit Guard (1.8 Units/hr - ประหยัดเครดิต 7 เท่า!)' : 'Colab Pro GPU Credit Guard')}
           </h3>
           <span className={`text-[11px] px-2 py-0.5 rounded border ${isLocal ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
-            {isLocal ? 'Unlimited Free Local Compute' : '200 Units/Month Plan'}
+            {isLocal ? 'Unlimited Free Local Compute' : (isL4 ? 'โหมด L4 ประหยัดเครดิตขั้นสุด' : '200 Units/Month Plan')}
           </span>
         </div>
 
@@ -86,7 +90,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
             {isConnected ? formatTime(sessionSeconds) : '0m 00s'}
           </div>
           <div className="text-[10px] text-gray-500 mt-0.5">
-            {isConnected ? (isLocal ? 'Local Hardware' : '12.5 Units / hr rate') : 'Stopped'}
+            {isConnected ? (isLocal ? 'Local Hardware' : `${RATE_PER_HOUR} Units / hr rate`) : 'Stopped'}
           </div>
         </div>
 
@@ -101,7 +105,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
             <span className="text-xs text-gray-400 font-normal">{isLocal ? 'THB (Free)' : 'units'}</span>
           </div>
           <div className="text-[10px] text-gray-500 mt-0.5">
-            {isLocal ? '100% Free on Local GPU' : `~$${(totalConsumedCredits * 0.1).toFixed(2)} USD value`}
+            {isLocal ? '100% Free on Local GPU' : (isL4 ? `L4 ~1.8 U/hr (~$${(totalConsumedCredits * 0.1).toFixed(2)})` : `A100 ~12.5 U/hr (~$${(totalConsumedCredits * 0.1).toFixed(2)})`)}
           </div>
         </div>
 
@@ -135,7 +139,7 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
               onClick={onEmergencyShutdown}
               className="mt-2 text-[11px] py-1 px-2 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium text-center transition"
             >
-              Disconnect A100 Now
+              Disconnect GPU Now
             </button>
           )}
         </div>

@@ -188,7 +188,7 @@ def find_tbe_addr() -> Optional[str]:
                     try:
                         with open(env_file, "rb") as ef:
                             env_data = ef.read().decode("utf-8", errors="ignore")
-                            for item in env_data.split("\0"):
+                            for item in env_data.split(chr(0)):
                                 if item.startswith("TBE_RUNTIME_ADDR="):
                                     val = item.split("=", 1)[1].strip()
                                     if val:

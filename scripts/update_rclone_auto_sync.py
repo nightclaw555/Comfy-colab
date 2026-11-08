@@ -51,7 +51,9 @@ def update_notebook(nb_path):
 for nb_file in ['ComfyUI_A100_MiniMax_H3_Studio.ipynb', 'ComfyUI_A100_Wan22_Commercial_Studio.ipynb']:
     local_p = os.path.join('colab', nb_file)
     update_notebook(local_p)
-    gdrive_p = os.path.join(r'G:\Colab Notebooks', nb_file)
-    if os.path.exists(r'G:\Colab Notebooks'):
+    gdrive_dir = r'X:\Colab Notebooks' if os.path.exists(r'X:\Colab Notebooks') else r'G:\Colab Notebooks'
+    gdrive_p = os.path.join(gdrive_dir, nb_file)
+    if os.path.exists(gdrive_dir):
         shutil.copyfile(local_p, gdrive_p)
         print('Synced updated notebook to Google Drive:', gdrive_p)
+

@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 > nul
-title Rclone Google Drive Mount (Drive G:)
+title Rclone Google Drive Mount (Drive X:)
 echo ====================================================================
-echo   ☁️ Mounting Google Drive to G: via Rclone
+echo   ☁️ Mounting Google Drive to X: via Rclone
 echo ====================================================================
 echo.
 
@@ -20,8 +20,8 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo กำลังเชื่อมต่อ mygdrive: เข้ากับไดรฟ์ X:...
-echo (หน้าต่างนี้ต้องเปิดค้างไว้เพื่อรักษาการเชื่อมต่อ)
+echo (หน้าต่างนี้เปิดไว้เพื่อรักษาการเชื่อมต่อ หรือย่อหน้าต่างไว้ที่ Taskbar ได้ครับ)
 echo.
 
-"%RCLONE_BIN%" mount mygdrive: X: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M
+"%RCLONE_BIN%" mount mygdrive: X: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M --volname "Google Drive"
 pause
