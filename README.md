@@ -1,5 +1,7 @@
 # 🎬 ComfyUI Video Studio (MiniMax-H3 Turbo Uncensored + Colab A100)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nightclaw555/Comfy-colab/blob/main/colab/ComfyUI_A100_MiniMax_H3_Studio.ipynb)
+
 ระบบเว็บแอปพลิเคชันสำหรับสร้างคลิปวิดีโอระดับสตูดิโอพร้อมเสียง (Audio-Visual Synthesis) ด้วยโมเดล **MiniMax-H3 Turbo LoRA (Uncensored Workflow)** โดยประมวลผลบน **GPU NVIDIA A100 ของ Google Colab Pro** และจัดเก็บโมเดลถาวรบน **Google Drive** พร้อมระบบตัดการเชื่อมต่ออัตโนมัติ (**Auto-Disconnect Kill Switch**) เพื่อให้ใช้โควต้า **200 Compute Units/เดือน** ได้คุ้มค่าสูงสุด (ผลิตได้มากถึง 600–900 คลิป/เดือน)
 
 ---
