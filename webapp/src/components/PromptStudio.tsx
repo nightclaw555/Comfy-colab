@@ -139,7 +139,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('9:16');
   const [width, setWidth] = useState(576);
   const [height, setHeight] = useState(1024);
-  const [frames, setFrames] = useState(56);
+  const [frames, setFrames] = useState(124);
   const [steps, setSteps] = useState(8);
   const [cfg, setCfg] = useState(2.0);
   const [seed, setSeed] = useState(42);
@@ -263,7 +263,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setAspectRatio('9:16');
       setWidth(576);
       setHeight(1024);
-      setFrames(56);
+      setFrames(124);
       setSteps(8);
       setCfg(2.0);
       setPositivePrompt(TIKTOK_PRESETS[0].prompt);
@@ -273,7 +273,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setAspectRatio('9:16');
       setWidth(576);
       setHeight(1024);
-      setFrames(56);
+      setFrames(124);
       setSteps(8);
       setCfg(2.0);
       setPositivePrompt(NSFW_MOTION_PRESETS[0].prompt);
@@ -284,7 +284,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
       setAspectRatio('16:9');
       setWidth(1024);
       setHeight(576);
-      setFrames(73); // ~3 seconds @ 24fps
+      setFrames(124); // 5.1s standard
       setSteps(8);
       setCfg(2.0);
       setPositivePrompt(MUSIC_VIDEO_PRESETS[0].prompt);
@@ -673,6 +673,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
         onAddToQueue(segConfig, s === 1 && autoStart);
       }
     } else {
+      const targetFrames = totalDuration === 2 ? 56 : (totalDuration === 3 ? 73 : 124);
       const config: PromptConfig = {
         taskMode,
         modelEngine: taskMode,
@@ -683,7 +684,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
         aspectRatio,
         width,
         height,
-        frames,
+        frames: targetFrames,
         steps,
         cfg,
         seed,
@@ -1458,7 +1459,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({ onAddToQueue, isConn
               }}
               className="w-full px-2 py-1.5 bg-studio-950 border border-studio-800 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
             >
-              <option value={5}>5 วิ (1 ช็อต - 124 เฟรม)</option>
+              <option value={5}>5 วิ (1 ช็อต - 124 เฟรม มาตรฐาน ⭐)</option>
+              <option value={2}>2.3 วิ (Super Fast Preview - 56 เฟรม)</option>
               <option value={10}>10 วิ (2 ช็อต: 5s + 5s ⭐)</option>
               <option value={15}>15 วิ (3 ช็อต: 15 วินาที)</option>
               <option value={30}>30 วิ (6 ช็อต: 30 วินาที - คลิปสั้น TikTok / Reel)</option>
