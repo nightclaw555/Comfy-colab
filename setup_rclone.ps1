@@ -65,11 +65,11 @@ Write-Host "--------------------------------------------------------------------
 
 Write-Host "`n====================================================================" -ForegroundColor Green
 Write-Host "  Authentication successful!" -ForegroundColor Green
-Write-Host "  Mounting Google Drive to G: in the background..." -ForegroundColor Green
+Write-Host "  Mounting Google Drive to Drive X: in the background..." -ForegroundColor Green
 Write-Host "====================================================================" -ForegroundColor Green
 
-# 5. Start mounting Drive G: in the background
-Start-Process -FilePath $rcloneExe -ArgumentList "mount mygdrive: G: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M" -WindowStyle Minimized
+# 5. Start mounting Drive X: in the background (X: is completely free and unassigned)
+Start-Process -FilePath $rcloneExe -ArgumentList "mount mygdrive: X: --vfs-cache-mode full --dir-cache-time 72h --vfs-cache-max-age 24h --buffer-size 64M" -WindowStyle Minimized
 
 Start-Sleep -Seconds 3
-Write-Host "`nSUCCESS: Drive G: is now mounted and ready in This PC!" -ForegroundColor Green
+Write-Host "`nSUCCESS: Google Drive is now mounted as Drive X: in This PC!" -ForegroundColor Green

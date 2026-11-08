@@ -7,8 +7,10 @@ import path from 'path';
 const FALLBACK_VIDEO_DIR = path.resolve(process.cwd(), '..', 'outputs');
 
 function resolveVideoDir(): string {
-  // Check candidate Google Drive paths (including Google Drive for Desktop "My Drive")
+  // Check candidate Google Drive paths (Rclone X: or Z:, or Google Drive for Desktop)
   const candidates = [
+    'X:\\ComfyUI_Studio\\outputs',
+    'Z:\\ComfyUI_Studio\\outputs',
     'G:\\My Drive\\ComfyUI_Studio\\outputs',
     'G:\\MyDrive\\ComfyUI_Studio\\outputs',
     'G:\\ComfyUI_Studio\\outputs',
