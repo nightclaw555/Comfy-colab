@@ -50,17 +50,27 @@ def sync_outputs_to_gdrive(force_all: bool = False):
         if os.path.exists("/content/drive/MyDrive"):
             try:
                 os.makedirs(GDRIVE_DEST_DIR, exist_ok=True)
-                for fname in os.listdir(OUTPUT_DIR):
-                    if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
-                        continue
-                    src_f = os.path.join(OUTPUT_DIR, fname)
-                    dst_f = os.path.join(GDRIVE_DEST_DIR, fname)
-                    if os.path.isfile(src_f):
+                for root, dirs, files in os.walk(OUTPUT_DIR):
+                    for fname in files:
+                        if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
+                            continue
+                        src_f = os.path.join(root, fname)
+                        if not os.path.isfile(src_f):
+                            continue
                         src_stat = os.stat(src_f)
-                        if src_stat.st_size > 1024 and (time.time() - src_stat.st_mtime) >= 1.0:
-                            if not os.path.exists(dst_f) or os.stat(dst_f).st_size != src_stat.st_size:
-                                shutil.copy2(src_f, dst_f)
-                                print(f"[Google Drive Auto-Sync] Saved {fname} ({src_stat.st_size / (1024*1024):.2f} MB) -> {dst_f}")
+                        if src_stat.st_size <= 1024 or (time.time() - src_stat.st_mtime) < 1.0:
+                            continue
+
+                        # Categorize: picture for images, video for videos
+                        is_img = fname.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                        sub_dir = "picture" if is_img else "video"
+                        target_folder = os.path.join(GDRIVE_DEST_DIR, sub_dir)
+                        os.makedirs(target_folder, exist_ok=True)
+                        dst_f = os.path.join(target_folder, fname)
+
+                        if not os.path.exists(dst_f) or os.stat(dst_f).st_size != src_stat.st_size:
+                            shutil.copy2(src_f, dst_f)
+                            print(f"[Google Drive Auto-Sync] Saved {fname} ({src_stat.st_size / (1024*1024):.2f} MB) -> {dst_f}")
             except Exception as e:
                 print(f"[Google Drive Auto-Sync] Warning: {e}")
 
@@ -82,32 +92,37 @@ def sync_outputs_to_gdrive(force_all: bool = False):
                     )
                     return
 
-                for fname in os.listdir(OUTPUT_DIR):
-                    if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
-                        continue
-                    fpath = os.path.join(OUTPUT_DIR, fname)
-                    if not os.path.isfile(fpath):
-                        continue
-                    stat = os.stat(fpath)
-                    if stat.st_size < 1024 or (time.time() - stat.st_mtime) < 1.5:
-                        continue
-                    sig = (stat.st_size, stat.st_mtime)
-                    if _SYNCED_FILES.get(fname) == sig:
-                        continue
+                for root, dirs, files in os.walk(OUTPUT_DIR):
+                    for fname in files:
+                        if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
+                            continue
+                        fpath = os.path.join(root, fname)
+                        if not os.path.isfile(fpath):
+                            continue
+                        stat = os.stat(fpath)
+                        if stat.st_size < 1024 or (time.time() - stat.st_mtime) < 1.5:
+                            continue
+                        sig = (stat.st_size, stat.st_mtime)
+                        if _SYNCED_FILES.get(fname) == sig:
+                            continue
 
-                    res = subprocess.run(
-                        [
-                            "rclone", "copyto", fpath, f"{RCLONE_REMOTE_DEST}/{fname}",
-                            "--config", RCLONE_CONF_PATH,
-                            "--drive-chunk-size", "128M",
-                            "--quiet"
-                        ],
-                        timeout=45,
-                        check=False
-                    )
-                    if res.returncode == 0:
-                        _SYNCED_FILES[fname] = sig
-                        print(f"[Rclone Auto-Sync] Synced {fname} ({stat.st_size / (1024*1024):.2f} MB) -> {RCLONE_REMOTE_DEST}")
+                        is_img = fname.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                        sub_dir = "picture" if is_img else "video"
+                        remote_dest = f"{RCLONE_REMOTE_DEST}/{sub_dir}/{fname}"
+
+                        res = subprocess.run(
+                            [
+                                "rclone", "copyto", fpath, remote_dest,
+                                "--config", RCLONE_CONF_PATH,
+                                "--drive-chunk-size", "128M",
+                                "--quiet"
+                            ],
+                            timeout=45,
+                            check=False
+                        )
+                        if res.returncode == 0:
+                            _SYNCED_FILES[fname] = sig
+                            print(f"[Rclone Auto-Sync] Synced {fname} ({stat.st_size / (1024*1024):.2f} MB) -> {remote_dest}")
             except Exception as e:
                 print(f"[Rclone Auto-Sync] Warning: {e}")
 

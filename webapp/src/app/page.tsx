@@ -327,7 +327,16 @@ export default function StudioDashboard() {
             connection.comfyUrl,
             outputFilename,
             outputSubfolder,
-            outputType
+            outputType,
+            {
+              prompt: item.config.positivePrompt,
+              originalThaiPrompt: item.config.originalThaiPrompt,
+              width: item.config.width,
+              height: item.config.height,
+              steps: item.config.steps,
+              mode: item.config.mode,
+              taskMode: item.config.taskMode,
+            }
           );
 
           anySuccess = true;

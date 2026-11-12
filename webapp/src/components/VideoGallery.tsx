@@ -32,6 +32,8 @@ interface LocalMediaFile {
   sizeMb: string;
   createdAt: number;
   url: string;
+  prompt?: string;
+  originalThaiPrompt?: string;
 }
 
 function isImageFile(filenameOrUrl?: string): boolean {
@@ -147,6 +149,11 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Set of filenames already present in the active session queue
+  const completedFilenames = new Set(
+    completedItems.map((item) => item.outputFilename).filter(Boolean)
+  );
+
   // Collect all available video candidates for merging (exclude still images)
   const availableVideos: VideoOption[] = [
     ...completedItems
@@ -158,7 +165,12 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
         url: i.outputVideoUrl!,
       })),
     ...localFiles
-      .filter((lv) => !lv.isImage && !isImageFile(lv.filename))
+      .filter(
+        (lv) =>
+          !completedFilenames.has(lv.filename) &&
+          !lv.isImage &&
+          !isImageFile(lv.filename)
+      )
       .map((lv) => ({
         id: lv.filename,
         filename: lv.filename,
@@ -210,6 +222,9 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   });
 
   const filteredLocal = localFiles.filter((lf) => {
+    // Deduplicate: If this file is already represented in completedItems with full prompt metadata, omit duplicate card
+    if (completedFilenames.has(lf.filename)) return false;
+
     const isImg = !!lf.isImage || isImageFile(lf.filename);
     if (mediaFilter === 'image') return isImg;
     if (mediaFilter === 'video') return !isImg;
@@ -234,7 +249,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                 mediaFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              ทั้งหมด ({Math.max(completedItems.length, localFiles.length)})
+              ทั้งหมด ({filteredCompleted.length + filteredLocal.length})
             </button>
             <button
               onClick={() => setMediaFilter('image')}
@@ -457,12 +472,21 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                   {activeLocal.filename}
                 </p>
               </div>
+
+              {activeLocal.prompt && (
+                <div>
+                  <span className="text-xs font-semibold text-gray-400 block mb-1">Prompt ที่ใช้สร้าง</span>
+                  <p className="text-xs text-gray-200 bg-studio-900 p-2.5 rounded-xl border border-studio-800 font-mono break-words line-clamp-3">
+                    {activeLocal.prompt}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 pt-3 border-t border-studio-800">
               {activeIsImage && onSendImageToVideo && (
                 <button
-                  onClick={() => onSendImageToVideo(activeLocal.url, activeLocal.filename)}
+                  onClick={() => onSendImageToVideo(activeLocal.url, activeLocal.filename, activeLocal.prompt)}
                   className="w-full flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white text-xs font-bold transition shadow-md"
                 >
                   <Wand2 className="w-4 h-4" />
@@ -479,6 +503,25 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                   <Download className="w-3.5 h-3.5" />
                   <span>ดาวน์โหลดไฟล์ ({activeLocal.sizeMb} MB)</span>
                 </a>
+
+                {activeLocal.prompt && (
+                  <button
+                    onClick={() => handleCopy(activeLocal.prompt!, activeLocal.filename)}
+                    className="py-2 px-3 rounded-xl bg-studio-900 hover:bg-studio-800 text-gray-300 border border-studio-800 text-xs flex items-center space-x-1 transition"
+                  >
+                    {copiedId === activeLocal.filename ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">คัดลอกแล้ว</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>คัดลอก Prompt</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
                 <button
                   onClick={() => handleDeleteSingle(activeLocal.filename)}

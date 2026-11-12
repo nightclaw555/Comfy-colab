@@ -161,7 +161,8 @@ export class ComfyApiClient {
     baseUrl: string,
     filename: string,
     subfolder: string = '',
-    type: string = 'output'
+    type: string = 'output',
+    metadata?: any
   ): Promise<{ finalVideoUrl: string; savedToDisk: boolean; localPath?: string }> {
     const remoteUrl = this.getDirectRemoteMediaUrl(baseUrl, filename, subfolder, type);
     const proxyMediaUrl = this.getMediaUrl(baseUrl, filename, subfolder, type);
@@ -174,7 +175,7 @@ export class ComfyApiClient {
       const saveRes = await fetch('/api/gdrive-videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ remoteUrl, filename }),
+        body: JSON.stringify({ remoteUrl, filename, metadata }),
       });
       if (saveRes.ok) {
         const saveData = await saveRes.json();

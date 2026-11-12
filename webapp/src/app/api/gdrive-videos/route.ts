@@ -2,21 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Primary target: High-Speed Rclone Mounted Google Drive (G:\ComfyUI_Studio\outputs)
-// Fallback: Local project's "outputs" directory if G: is not mounted
-const GDRIVE_VIDEO_DIR = 'G:\\ComfyUI_Studio\\outputs';
+// Primary target: Google Drive via Rclone (Drive X:\) or mounted drive G:\
+// Fallback: Local project's "outputs" directory if cloud drive is not mounted
+const X_DRIVE_DIR = 'X:\\ComfyUI_Studio\\outputs';
+const G_DRIVE_DIR = 'G:\\ComfyUI_Studio\\outputs';
 const FALLBACK_VIDEO_DIR = path.resolve(process.cwd(), '..', 'outputs');
 
 function resolveVideoDir(): string {
   try {
-    if (fs.existsSync('G:\\')) {
-      if (!fs.existsSync(GDRIVE_VIDEO_DIR)) {
-        fs.mkdirSync(GDRIVE_VIDEO_DIR, { recursive: true });
+    // 1. Check X:\ (Rclone Google Drive mount - 5TB Cloud Drive)
+    if (fs.existsSync('X:\\ComfyUI_Studio') || fs.existsSync('X:\\')) {
+      if (!fs.existsSync(X_DRIVE_DIR)) {
+        fs.mkdirSync(X_DRIVE_DIR, { recursive: true });
       }
-      return GDRIVE_VIDEO_DIR;
+      return X_DRIVE_DIR;
+    }
+    // 2. Check G:\
+    if (fs.existsSync('G:\\ComfyUI_Studio') || fs.existsSync('G:\\')) {
+      if (!fs.existsSync(G_DRIVE_DIR)) {
+        fs.mkdirSync(G_DRIVE_DIR, { recursive: true });
+      }
+      return G_DRIVE_DIR;
     }
   } catch {
-    // Fallback if G: is inaccessible
+    // Fallback if network drives are inaccessible
   }
   return FALLBACK_VIDEO_DIR;
 }
@@ -38,17 +47,30 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const file = searchParams.get('file');
 
-    // If specific file requested, stream the MP4/WebM video directly from G:\ComfyUI_Studio\outputs
+    // If specific file requested, stream the MP4/WebM video or 4K PNG image
     if (file) {
       const safeName = path.basename(file);
-      let filePath = path.join(VIDEO_DIR, safeName);
-      if (!fs.existsSync(filePath)) {
-        const fallbackPath = path.join(FALLBACK_VIDEO_DIR, safeName);
-        if (fs.existsSync(fallbackPath)) {
-          filePath = fallbackPath;
-        } else {
-          return new NextResponse('Video not found', { status: 404 });
+      const searchCandidates = [
+        path.join(VIDEO_DIR, safeName),
+        path.join(VIDEO_DIR, 'picture', safeName),
+        path.join(VIDEO_DIR, 'video', safeName),
+        path.join(FALLBACK_VIDEO_DIR, safeName),
+        path.join(FALLBACK_VIDEO_DIR, 'picture', safeName),
+        path.join(FALLBACK_VIDEO_DIR, 'video', safeName),
+        path.join('G:\\ComfyUI_Studio\\outputs', safeName),
+        path.join('G:\\ComfyUI_Studio\\outputs', 'picture', safeName),
+      ];
+
+      let filePath: string | null = null;
+      for (const cand of searchCandidates) {
+        if (fs.existsSync(cand)) {
+          filePath = cand;
+          break;
         }
+      }
+
+      if (!filePath) {
+        return new NextResponse('Media not found', { status: 404 });
       }
 
       const stat = fs.statSync(filePath);
@@ -70,28 +92,62 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Otherwise, list all videos and 4K images saved in G:\ComfyUI_Studio\outputs
+    // Otherwise, list all videos and 4K images saved in Google Drive / outputs (including picture/ and video/ subfolders)
     if (!ensureOutputDir(VIDEO_DIR) || !fs.existsSync(VIDEO_DIR)) {
       return NextResponse.json({ videos: [], directory: VIDEO_DIR });
     }
 
     const allowedExts = ['.mp4', '.webm', '.png', '.jpg', '.jpeg', '.webp'];
-    const files = fs
-      .readdirSync(VIDEO_DIR)
-      .filter((f) => allowedExts.some((ext) => f.toLowerCase().endsWith(ext)))
-      .map((filename) => {
-        const fullPath = path.join(VIDEO_DIR, filename);
-        const stat = fs.statSync(fullPath);
-        const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some((ext) => filename.toLowerCase().endsWith(ext));
-        return {
-          filename,
-          isImage,
-          sizeMb: (stat.size / (1024 * 1024)).toFixed(2),
-          createdAt: stat.mtimeMs,
-          url: `/api/gdrive-videos?file=${encodeURIComponent(filename)}`,
-        };
-      })
-      .sort((a, b) => b.createdAt - a.createdAt);
+    const searchDirs = [VIDEO_DIR];
+    for (const sub of ['picture', 'video', 'image']) {
+      const subPath = path.join(VIDEO_DIR, sub);
+      if (fs.existsSync(subPath)) {
+        try {
+          if (fs.statSync(subPath).isDirectory()) {
+            searchDirs.push(subPath);
+          }
+        } catch (_) {}
+      }
+    }
+
+    const allFilesMap = new Map<string, any>();
+
+    for (const dir of searchDirs) {
+      try {
+        const dirFiles = fs.readdirSync(dir);
+        for (const filename of dirFiles) {
+          if (!allowedExts.some((ext) => filename.toLowerCase().endsWith(ext))) continue;
+          if (allFilesMap.has(filename)) continue;
+
+          const fullPath = path.join(dir, filename);
+          const stat = fs.statSync(fullPath);
+          const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some((ext) => filename.toLowerCase().endsWith(ext));
+
+          let prompt: string | undefined = undefined;
+          let originalThaiPrompt: string | undefined = undefined;
+          const metaPath = path.join(dir, `${filename}.json`);
+          if (fs.existsSync(metaPath)) {
+            try {
+              const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+              prompt = meta.prompt || meta.positivePrompt || undefined;
+              originalThaiPrompt = meta.originalThaiPrompt || undefined;
+            } catch (_) {}
+          }
+
+          allFilesMap.set(filename, {
+            filename,
+            isImage,
+            sizeMb: (stat.size / (1024 * 1024)).toFixed(2),
+            createdAt: stat.mtimeMs,
+            url: `/api/gdrive-videos?file=${encodeURIComponent(filename)}`,
+            prompt,
+            originalThaiPrompt,
+          });
+        }
+      } catch (_) {}
+    }
+
+    const files = Array.from(allFilesMap.values()).sort((a, b) => b.createdAt - a.createdAt);
 
     return NextResponse.json({ videos: files, directory: VIDEO_DIR });
   } catch (e: any) {
@@ -107,7 +163,7 @@ export async function POST(req: NextRequest) {
   try {
     const VIDEO_DIR = resolveVideoDir();
     const body = await req.json();
-    const { remoteUrl, filename } = body;
+    const { remoteUrl, filename, metadata } = body;
 
     if (!remoteUrl) {
       return NextResponse.json({ savedLocally: false, error: 'remoteUrl is required' }, { status: 400 });
@@ -119,17 +175,31 @@ export async function POST(req: NextRequest) {
     }
 
     const baseName = path.basename(filename || `studio_video_${Date.now()}.mp4`);
-    const targetPath = path.join(VIDEO_DIR, baseName);
+    const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some((ext) => baseName.toLowerCase().endsWith(ext));
+    const subFolder = isImage ? 'picture' : 'video';
+    const targetDir = path.join(VIDEO_DIR, subFolder);
+    ensureOutputDir(targetDir);
 
-    // If Colab Rclone Sync already placed this exact file in G:\ComfyUI_Studio\outputs, no need to download again!
-    if (fs.existsSync(targetPath)) {
-      const existingStat = fs.statSync(targetPath);
+    const targetPath = path.join(targetDir, baseName);
+    const rootPath = path.join(VIDEO_DIR, baseName);
+
+    // Save prompt metadata JSON if provided
+    if (metadata && typeof metadata === 'object') {
+      try {
+        fs.writeFileSync(path.join(targetDir, `${baseName}.json`), JSON.stringify(metadata, null, 2), 'utf-8');
+      } catch (_) {}
+    }
+
+    // If file already exists in target folder or root, no need to download again!
+    const existingFile = fs.existsSync(targetPath) ? targetPath : fs.existsSync(rootPath) ? rootPath : null;
+    if (existingFile) {
+      const existingStat = fs.statSync(existingFile);
       if (existingStat.size > 10000) {
         return NextResponse.json({
           savedLocally: true,
           alreadySyncedFromColab: true,
           filename: baseName,
-          localPath: targetPath,
+          localPath: existingFile,
           localUrl: `/api/gdrive-videos?file=${encodeURIComponent(baseName)}`,
           sizeMb: (existingStat.size / (1024 * 1024)).toFixed(2),
         });
