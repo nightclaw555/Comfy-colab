@@ -3,6 +3,9 @@ import { PromptConfig } from '../types';
 export function buildComfyPrompt(config: PromptConfig): Record<string, any> {
   const mode = config.taskMode || (config.modelEngine as any) || 'tiktok';
 
+  if (mode === 'image_gen' || config.mode === 't2i' || config.mode === 'i2i') {
+    return buildImageGenWorkflow(config);
+  }
   if (mode === 'nsfw_motion') {
     return buildNsfwMotionWorkflow(config);
   }
@@ -529,6 +532,139 @@ function buildMusicVideoWorkflow(config: PromptConfig): Record<string, any> {
       }
     };
     graph["131"]["inputs"]["first_frame"] = ["140", 0];
+  }
+
+  return graph;
+}
+
+// -------------------------------------------------------------
+// 4. MiniMax-H3-Image Workflow (4K Ultra-HD Text-to-Image & Multi-Ref Edit in 6 Steps)
+// -------------------------------------------------------------
+function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
+  const seed = config.randomizeSeed
+    ? Math.floor(Math.random() * 9007199254740991)
+    : (config.seed || 42);
+
+  // MiniMax-H3-Image supports native up to 4096x4096 (multiples of 32)
+  let safeWidth = Math.max(512, Math.floor((config.width || 2048) / 32) * 32);
+  let safeHeight = Math.max(512, Math.floor((config.height || 2048) / 32) * 32);
+  if (safeWidth > 4096) safeWidth = 4096;
+  if (safeHeight > 4096) safeHeight = 4096;
+
+  // Colab auto-symlinks minimax_h3_image_auto.safetensors to BF16 (on A100 80GB) or INT8 (on 40GB/24GB)
+  let unetName = 'minimax_h3_image_pruned_bf16.safetensors';
+  if (config.imagePrecision === 'int8_fast') {
+    unetName = 'minimax_h3_image_pruned_int8_convrot.safetensors';
+  } else if (config.imagePrecision === 'bf16_80gb') {
+    unetName = 'minimax_h3_image_pruned_bf16.safetensors';
+  }
+
+  const graph: Record<string, any> = {
+    // 24-Channel Image VAE
+    "10": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "minimax_h3_image_vae_fp16.safetensors"
+      }
+    },
+    // Shared Qwen3-VL 32B Text Encoder
+    "11": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+        "type": "minimax",
+        "device": "default"
+      }
+    },
+    // MiniMax-H3-Image DiT (BF16 on A100 80GB / INT8 on 40GB-24GB via Colab Auto-Select & Alias)
+    "12": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": unetName,
+        "weight_dtype": "default"
+      }
+    },
+    // Native MiniMaxH3ImageConditioning (T2I + Multi-Ref Image Editing)
+    "13": {
+      "class_type": "MiniMaxH3ImageConditioning",
+      "inputs": {
+        "prompt": config.positivePrompt,
+        "width": safeWidth,
+        "height": safeHeight,
+        "clip": ["11", 0],
+        "vae": ["10", 0]
+      }
+    },
+    // Guider (CFG-distilled at 1.0, no negative prompt needed)
+    "14": {
+      "class_type": "BasicGuider",
+      "inputs": {
+        "model": ["12", 0],
+        "conditioning": ["13", 0]
+      }
+    },
+    // Sampler (Euler for 6-step distilled PDD)
+    "15": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "euler"
+      }
+    },
+    // Noise
+    "16": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": seed
+      }
+    },
+    // Scheduler (6 steps simple schedule)
+    "17": {
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "scheduler": "simple",
+        "steps": config.steps || 6,
+        "denoise": 1.0,
+        "model": ["12", 0]
+      }
+    },
+    // Advanced Sampler
+    "18": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": ["16", 0],
+        "guider": ["14", 0],
+        "sampler": ["15", 0],
+        "sigmas": ["17", 0],
+        "latent_image": ["13", 1]
+      }
+    },
+    // Decode 24-channel Latent to RGB Image
+    "19": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["18", 0],
+        "vae": ["10", 0]
+      }
+    },
+    // Save Ultra-HD Image
+    "20": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "image/MiniMax_H3_4K",
+        "images": ["19", 0]
+      }
+    }
+  };
+
+  // Image Editing / Reference Mode (if user attached an image)
+  if ((config.mode === 'i2i' || config.mode === 'i2v') && config.inputImageFilename && config.inputImageFilename.trim() !== '' && config.inputImageFilename !== 'input.png') {
+    graph["21"] = {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": config.inputImageFilename
+      }
+    };
+    graph["13"]["inputs"]["image_1"] = ["21", 0];
   }
 
   return graph;

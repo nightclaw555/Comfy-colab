@@ -64,6 +64,22 @@ MODELS_CONFIG = [
         "expected_gb": 0.7,
         "required": False,
         "description": "[Optional] Mystic Motion/Character LoRA"
+    },
+    {
+        "category": "vae",
+        "filename": "minimax_h3_image_vae_fp16.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image/resolve/main/vae/minimax_h3_image_vae_fp16.safetensors",
+        "expected_gb": 0.65,
+        "required": False,
+        "description": "[Image Studio] MiniMax-H3-Image 24-Channel Image VAE (FP16)"
+    },
+    {
+        "category": "diffusion_models",
+        "filename": "minimax_h3_image_pruned_int8_convrot.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image/resolve/main/diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors",
+        "expected_gb": 21.0,
+        "required": False,
+        "description": "[Image Studio] MiniMax-H3-Image 4K DiT Model (INT8 Fast ~21GB)"
     }
 ]
 

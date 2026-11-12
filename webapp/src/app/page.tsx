@@ -25,6 +25,12 @@ export default function StudioDashboard() {
   // DEFAULT TO FALSE TO PREVENT PREMATURE TERMINATION
   const [autoShutdownOnFinish, setAutoShutdownOnFinish] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'info' | 'success' | 'warn' } | null>(null);
+  const [incomingImageForVideo, setIncomingImageForVideo] = useState<{
+    url: string;
+    filename: string;
+    promptText?: string;
+    timestamp: number;
+  } | null>(null);
 
   const isProcessingRef = useRef(isProcessing);
   isProcessingRef.current = isProcessing;
@@ -163,9 +169,9 @@ export default function StudioDashboard() {
         let uploadedImageFilename = item.config.inputImageFilename;
         let uploadedVideoFilename = item.config.referenceVideoFilename;
 
-        // Check if Image-to-Video mode has an image
-        if (item.config.mode === 'i2v' && !uploadedImageFilename && !item.config.inputImageBase64) {
-          throw new Error('ไม่พบรูปภาพต้นแบบสำหรับโหมด Image-to-Video กรุณาอัปโหลดรูปภาพสินค้า/นางแบบ หรือสลับไปใช้โหมด Text-to-Video ครับ');
+        // Check if Image-to-Video or Image-to-Image mode has an image
+        if ((item.config.mode === 'i2v' || item.config.mode === 'i2i') && !uploadedImageFilename && !item.config.inputImageBase64) {
+          throw new Error('ไม่พบรูปภาพต้นแบบ กรุณาอัปโหลดรูปภาพอ้างอิง หรือสลับไปใช้โหมดสร้างใหม่จากข้อความ (Text-to-Image / Text-to-Video) ครับ');
         }
 
         // Auto-upload reference image if present (works on both Local PC & Google Colab)
@@ -530,29 +536,50 @@ export default function StudioDashboard() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full space-y-6 flex-1">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 w-full space-y-5 flex-1">
         <CreditMonitor
           isConnected={connection.isConnected}
           isSidecarConnected={connection.isSidecarConnected}
           onEmergencyShutdown={handleTriggerKillSwitch}
           activeJobCount={isProcessing ? 1 : 0}
           isLocal={connection.comfyUrl.includes('127.0.0.1') || connection.comfyUrl.includes('localhost')}
+          gpuName={connection.gpuStats?.name || ''}
+          vramTotalMb={connection.gpuStats?.memory_total_mb || 0}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 space-y-6">
-            <PromptStudio
-              onAddToQueue={handleAddToQueue}
-              isConnected={connection.isConnected}
-            />
+        {/* Full-Width Guided 1-2-3 Step Wizard */}
+        <PromptStudio
+          onAddToQueue={handleAddToQueue}
+          isConnected={connection.isConnected}
+          gpuName={connection.gpuStats?.name || ''}
+          vramTotalMb={connection.gpuStats?.memory_total_mb || 0}
+          incomingImageForVideo={incomingImageForVideo}
+        />
 
+        {/* Bottom Section: Studio Gallery (8 cols) + Batch Queue Manager (4 cols) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-8">
             <VideoGallery
               completedItems={completedVideos}
               sidecarUrl={connection.sidecarUrl}
+              onClearQueueHistory={() => setQueue((prev) => prev.filter((item) => item.status !== 'completed'))}
+              onSendImageToVideo={(imageUrl, filename, promptText) => {
+                setIncomingImageForVideo({
+                  url: imageUrl,
+                  filename,
+                  promptText,
+                  timestamp: Date.now(),
+                });
+                showNotification(
+                  `ส่งภาพ 4K (${filename}) ขึ้นไปที่ขั้นที่ 2 (โหมดวิดีโอ Image-to-Video) เรียบร้อยแล้ว! กดสร้างวิดีโอต่อได้เลยครับ`,
+                  'success'
+                );
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           </div>
 
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4 space-y-4">
             <BatchQueuePanel
               queue={queue}
               isProcessing={isProcessing}
@@ -563,21 +590,6 @@ export default function StudioDashboard() {
               onRemoveItem={(id) => setQueue((prev) => prev.filter((i) => i.id !== id))}
               isConnected={connection.isConnected}
             />
-
-            <div className="bg-studio-900 border border-studio-800 rounded-xl p-4 text-xs space-y-2 text-gray-400">
-              <h5 className="font-semibold text-gray-200">Colab 200 Units Pro Tips</h5>
-              <ul className="list-disc list-inside space-y-1 text-gray-400 leading-relaxed">
-                <li>
-                  <strong className="text-gray-300">Safe Disconnect:</strong> Colab will only auto-disconnect if you check the box and your batch succeeds with 0 errors.
-                </li>
-                <li>
-                  <strong className="text-gray-300">Offline Preparation:</strong> You can add multiple videos to the batch queue while Colab is turned off.
-                </li>
-                <li>
-                  <strong className="text-gray-300">MiniMax Turbo:</strong> Steps set to 6–8 provide studio motion with synchronized sound in ~45-60s on A100.
-                </li>
-              </ul>
-            </div>
           </div>
         </div>
       </main>

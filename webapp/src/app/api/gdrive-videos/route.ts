@@ -54,7 +54,11 @@ export async function GET(req: NextRequest) {
       const stat = fs.statSync(filePath);
       const fileStream = fs.createReadStream(filePath);
       const ext = path.extname(safeName).toLowerCase();
-      const contentType = ext === '.webm' ? 'video/webm' : 'video/mp4';
+      let contentType = 'video/mp4';
+      if (ext === '.webm') contentType = 'video/webm';
+      else if (ext === '.png') contentType = 'image/png';
+      else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+      else if (ext === '.webp') contentType = 'image/webp';
 
       return new NextResponse(fileStream as any, {
         headers: {
@@ -66,19 +70,22 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Otherwise, list all videos saved in G:\ComfyUI_Studio\outputs
+    // Otherwise, list all videos and 4K images saved in G:\ComfyUI_Studio\outputs
     if (!ensureOutputDir(VIDEO_DIR) || !fs.existsSync(VIDEO_DIR)) {
       return NextResponse.json({ videos: [], directory: VIDEO_DIR });
     }
 
+    const allowedExts = ['.mp4', '.webm', '.png', '.jpg', '.jpeg', '.webp'];
     const files = fs
       .readdirSync(VIDEO_DIR)
-      .filter((f) => f.toLowerCase().endsWith('.mp4') || f.toLowerCase().endsWith('.webm'))
+      .filter((f) => allowedExts.some((ext) => f.toLowerCase().endsWith(ext)))
       .map((filename) => {
         const fullPath = path.join(VIDEO_DIR, filename);
         const stat = fs.statSync(fullPath);
+        const isImage = ['.png', '.jpg', '.jpeg', '.webp'].some((ext) => filename.toLowerCase().endsWith(ext));
         return {
           filename,
+          isImage,
           sizeMb: (stat.size / (1024 * 1024)).toFixed(2),
           createdAt: stat.mtimeMs,
           url: `/api/gdrive-videos?file=${encodeURIComponent(filename)}`,
@@ -151,5 +158,72 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     return NextResponse.json({ savedLocally: false, error: e.message }, { status: 200 });
+  }
+}
+
+/**
+ * DELETE /api/gdrive-videos
+ * Deletes a specific file or clears all media files from outputs directory.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const VIDEO_DIR = resolveVideoDir();
+    const { searchParams } = new URL(req.url);
+    const filename = searchParams.get('file');
+    const clearAll = searchParams.get('all') === 'true';
+
+    const allowedExts = ['.mp4', '.webm', '.png', '.jpg', '.jpeg', '.webp'];
+
+    if (clearAll) {
+      let deletedCount = 0;
+      const dirs = [VIDEO_DIR, FALLBACK_VIDEO_DIR];
+      const seenDirs = new Set<string>();
+
+      for (const d of dirs) {
+        if (!fs.existsSync(d) || seenDirs.has(path.resolve(d))) continue;
+        seenDirs.add(path.resolve(d));
+
+        const files = fs.readdirSync(d);
+        for (const f of files) {
+          if (allowedExts.some((ext) => f.toLowerCase().endsWith(ext))) {
+            try {
+              fs.unlinkSync(path.join(d, f));
+              deletedCount++;
+            } catch (_) {}
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `ลบไฟล์ภาพและวิดีโอประวัติทั้งหมดเรียบร้อยแล้ว (${deletedCount} รายการ)`,
+        deletedCount,
+      });
+    }
+
+    if (filename) {
+      const safeName = path.basename(filename);
+      let removed = false;
+      const dirs = [VIDEO_DIR, FALLBACK_VIDEO_DIR];
+
+      for (const d of dirs) {
+        const filePath = path.join(d, safeName);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            removed = true;
+          } catch (_) {}
+        }
+      }
+
+      return NextResponse.json({
+        success: removed,
+        message: removed ? `ลบไฟล์ ${safeName} เรียบร้อยแล้ว` : 'ไม่พบไฟล์ที่ต้องการลบ',
+      });
+    }
+
+    return NextResponse.json({ success: false, error: 'ระบุไฟล์ที่ต้องการลบหรือ ?all=true' }, { status: 400 });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

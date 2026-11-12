@@ -1,18 +1,20 @@
-export type GenerationMode = 't2v' | 'i2v';
-export type TaskMode = 'tiktok' | 'nsfw_motion' | 'music_video';
+export type GenerationMode = 't2v' | 'i2v' | 't2i' | 'i2i';
+export type TaskMode = 'tiktok' | 'nsfw_motion' | 'music_video' | 'image_gen';
 export type ExtensionStrategy = 'last_frame' | 'multi_angle' | 'storyboard';
 export type GenerationStyle = 'sequential_storyboard' | 'single_pass_take';
 export type ModelEngine = TaskMode | 'minimax' | 'wan22' | 'wan21'; // Backward compatibility
+export type ImagePrecisionMode = 'auto' | 'bf16_80gb' | 'int8_fast';
 
 export interface PromptConfig {
   taskMode: TaskMode;
   modelEngine?: ModelEngine;
   mode: GenerationMode;
   generationStyle?: GenerationStyle;
+  imagePrecision?: ImagePrecisionMode;
   positivePrompt: string;
   audioPrompt: string;
   negativePrompt: string;
-  aspectRatio: '16:9' | '9:16' | '1:1';
+  aspectRatio: '16:9' | '9:16' | '1:1' | '21:9' | '4:3' | '3:4';
   width: number;
   height: number;
   frames: number;

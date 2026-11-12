@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Zap, AlertTriangle, ShieldCheck, Film, DollarSign } from 'lucide-react';
+import { Clock, Zap, AlertTriangle, ShieldCheck, Sparkles, Cpu, Power } from 'lucide-react';
 
 interface CreditMonitorProps {
   isConnected: boolean;
@@ -10,6 +10,7 @@ interface CreditMonitorProps {
   activeJobCount: number;
   isLocal?: boolean;
   gpuName?: string;
+  vramTotalMb?: number;
 }
 
 export const CreditMonitor: React.FC<CreditMonitorProps> = ({
@@ -19,10 +20,11 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   activeJobCount,
   isLocal = false,
   gpuName = '',
+  vramTotalMb = 0,
 }) => {
   const TOTAL_MONTHLY_CREDITS = 200;
   const isL4 = gpuName.toLowerCase().includes('l4');
-  // L4 uses ~1.8 units/hr, A100 uses ~12.5 units/hr
+  const is80GB = vramTotalMb >= 70000 || gpuName.toLowerCase().includes('80gb');
   const RATE_PER_HOUR = isL4 ? 1.8 : 12.5;
 
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -54,95 +56,87 @@ export const CreditMonitor: React.FC<CreditMonitorProps> = ({
   };
 
   const remainingCredits = Math.max(0, TOTAL_MONTHLY_CREDITS - totalConsumedCredits);
-  const costPerVideo = isL4 ? 0.04 : 0.28; // L4 is ~7x cheaper per video
-  const estimatedVideosLeft = Math.floor(remainingCredits / costPerVideo);
-  const isIdle = !isLocal && isConnected && activeJobCount === 0 && sessionSeconds > 300; // Idle for > 5 min
+  const isIdle = !isLocal && isConnected && activeJobCount === 0 && sessionSeconds > 300;
 
   return (
-    <div className="bg-studio-900 border border-studio-800 rounded-xl p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <div className="flex items-center space-x-2">
-          <Zap className={`w-4 h-4 ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`} />
-          <h3 className="text-sm font-semibold text-white">
-            {isLocal ? 'Local GPU Studio Monitor' : (isL4 ? 'Colab L4 Credit Guard (1.8 Units/hr - ประหยัดเครดิต 7 เท่า!)' : 'Colab Pro GPU Credit Guard')}
-          </h3>
-          <span className={`text-[11px] px-2 py-0.5 rounded border ${isLocal ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-amber-500/10 text-amber-300 border-amber-500/20'}`}>
-            {isLocal ? 'Unlimited Free Local Compute' : (isL4 ? 'โหมด L4 ประหยัดเครดิตขั้นสุด' : '200 Units/Month Plan')}
+    <div className="bg-studio-900/90 border border-studio-800 rounded-2xl px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      {/* Left: GPU & Auto-Model Detection Badge */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs font-semibold ${
+          isConnected
+            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+            : 'bg-studio-950 text-gray-400 border-studio-800'
+        }`}>
+          <Cpu className={`w-4 h-4 ${isConnected ? 'text-emerald-400' : 'text-gray-500'}`} />
+          <span>
+            {isConnected
+              ? isLocal
+                ? 'Local PC GPU Connected'
+                : `${gpuName || 'Colab GPU'} (${vramTotalMb ? `${Math.round(vramTotalMb / 1024)}GB` : 'Online'})`
+              : 'GPU Offline (สามารถจัดคิวงานล่วงหน้าได้ฟรี)'}
+          </span>
+        </div>
+
+        {/* Auto-Selected Image Precision Badge */}
+        <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-xs">
+          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="text-gray-300">ระบบเลือกโมเดลภาพอัตโนมัติ:</span>
+          <span className="font-bold text-indigo-300">
+            {is80GB
+              ? '💎 Master BF16 (40.2GB สำหรับ A100 80GB)'
+              : isConnected
+              ? '⚡ High-Speed INT8 (21GB)'
+              : '🤖 Auto-Detect ตาม VRAM การ์ดจอ'}
           </span>
         </div>
 
         {isIdle && (
-          <div className="flex items-center space-x-2 px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs animate-pulse">
+          <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs animate-pulse">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Colab is idle! Auto-kill active or disconnect now to save units.</span>
+            <span>ไม่มีคิวรันเกิน 5 นาที แนะนำกดตัด Colab เพื่อประหยัดเครดิต</span>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Session Time */}
-        <div className="bg-studio-950 p-3 rounded-lg border border-studio-800">
-          <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-            <Clock className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Active Session</span>
-          </div>
-          <div className="text-base font-bold text-white font-mono">
+      {/* Right: Compact Metrics & Quick Disconnect */}
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <div className="flex items-center space-x-1.5 bg-studio-950 px-3 py-1.5 rounded-xl border border-studio-800">
+          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="text-gray-400">เวลาออนไลน์:</span>
+          <span className="font-mono font-bold text-white">
             {isConnected ? formatTime(sessionSeconds) : '0m 00s'}
-          </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
-            {isConnected ? (isLocal ? 'Local Hardware' : `${RATE_PER_HOUR} Units / hr rate`) : 'Stopped'}
-          </div>
+          </span>
         </div>
 
-        {/* Units Used */}
-        <div className="bg-studio-950 p-3 rounded-lg border border-studio-800">
-          <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-            <Zap className={`w-3.5 h-3.5 ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`} />
-            <span>{isLocal ? 'Cost / Credits' : 'Session Consumed'}</span>
+        {!isLocal && (
+          <div className="flex items-center space-x-1.5 bg-studio-950 px-3 py-1.5 rounded-xl border border-studio-800">
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-gray-400">เครดิตที่ใช้:</span>
+            <span className="font-mono font-bold text-amber-300">
+              {totalConsumedCredits.toFixed(2)} Units
+            </span>
+            <span className="text-gray-500 hidden sm:inline">
+              (เหลือ ~{remainingCredits.toFixed(0)} U)
+            </span>
           </div>
-          <div className={`text-base font-bold font-mono ${isLocal ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {isLocal ? '0.00' : totalConsumedCredits.toFixed(3)}{' '}
-            <span className="text-xs text-gray-400 font-normal">{isLocal ? 'THB (Free)' : 'units'}</span>
-          </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
-            {isLocal ? '100% Free on Local GPU' : (isL4 ? `L4 ~1.8 U/hr (~$${(totalConsumedCredits * 0.1).toFixed(2)})` : `A100 ~12.5 U/hr (~$${(totalConsumedCredits * 0.1).toFixed(2)})`)}
-          </div>
+        )}
+
+        <div className="flex items-center space-x-1.5 bg-studio-950 px-3 py-1.5 rounded-xl border border-studio-800">
+          <ShieldCheck className={`w-3.5 h-3.5 ${isSidecarConnected ? 'text-emerald-400' : 'text-gray-500'}`} />
+          <span className="text-gray-300">
+            {isSidecarConnected ? 'Auto-Kill พร้อมทำงาน' : 'Kill-Switch Standby'}
+          </span>
         </div>
 
-        {/* Estimated Videos Remaining */}
-        <div className="bg-studio-950 p-3 rounded-lg border border-studio-800">
-          <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-            <Film className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Generation Quota</span>
-          </div>
-          <div className="text-base font-bold text-emerald-400 font-mono">
-            {isLocal ? '∞ Unlimited' : `~${estimatedVideosLeft} clips`}
-          </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
-            MiniMax Turbo (6-8 steps)
-          </div>
-        </div>
-
-        {/* Safety Status */}
-        <div className="bg-studio-950 p-3 rounded-lg border border-studio-800 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center space-x-1.5 text-xs text-gray-400 mb-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>{isLocal ? 'Sidecar Status' : 'Zero-Idle Protection'}</span>
-            </div>
-            <div className="text-xs text-gray-300 font-medium">
-              {isSidecarConnected ? (isLocal ? 'Local Sidecar Online' : 'Auto-Disconnect Ready') : 'Sidecar Offline'}
-            </div>
-          </div>
-          {isConnected && isSidecarConnected && !isLocal && (
-            <button
-              onClick={onEmergencyShutdown}
-              className="mt-2 text-[11px] py-1 px-2 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium text-center transition"
-            >
-              Disconnect GPU Now
-            </button>
-          )}
-        </div>
+        {isConnected && isSidecarConnected && !isLocal && (
+          <button
+            onClick={onEmergencyShutdown}
+            className="flex items-center space-x-1.5 py-1.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow-sm"
+          >
+            <Power className="w-3.5 h-3.5" />
+            <span>ตัด Colab ทันที</span>
+          </button>
+        )}
       </div>
     </div>
   );
