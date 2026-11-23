@@ -35,6 +35,11 @@ venv/
 outputs/*.png
 outputs/*.txt
 outputs/Cat_Moonwalk_Part*.mp4
+outputs/mv_projects/**/*.mp4
+outputs/mv_projects/**/*.mp3
+outputs/mv_projects/**/*.m4a
+outputs/mv_projects/**/*.wav
+outputs/mv_projects/**/*.png
 colab/extracted_cell1.py
 colab/sidecar_b64.txt
 colab/launcher_script.py
