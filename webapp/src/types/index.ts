@@ -4,7 +4,7 @@ export type ExtensionStrategy = 'last_frame' | 'multi_angle' | 'storyboard';
 export type GenerationStyle = 'sequential_storyboard' | 'single_pass_take';
 export type ModelEngine = TaskMode | 'minimax' | 'wan22' | 'wan21'; // Backward compatibility
 export type ImagePrecisionMode = 'auto' | 'bf16_80gb' | 'int8_fast';
-export type NsfwImageEngine = 'cyberrealistic_pony' | 'juggernaut_nsfw' | 'minimax_4k_nsfw';
+export type NsfwImageEngine = 'qwen21_uncensored' | 'minimax_4k_nsfw';
 
 export interface PromptConfig {
   taskMode: TaskMode;

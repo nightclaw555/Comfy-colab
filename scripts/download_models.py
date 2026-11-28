@@ -82,20 +82,36 @@ MODELS_CONFIG = [
         "description": "[Image Studio] MiniMax-H3-Image 4K DiT Model (INT8 Fast ~21GB)"
     },
     {
-        "category": "checkpoints",
-        "filename": "CyberRealisticPony_V14.0.safetensors",
-        "url": "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V14.0.safetensors",
-        "expected_gb": 6.46,
+        "category": "diffusion_models",
+        "filename": "qwen-image-2.1-step90000-INT8-ConvRot-comfy.safetensors",
+        "url": "https://huggingface.co/chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized/resolve/main/qwen-image-2.1-step90000-INT8-ConvRot-comfy.safetensors",
+        "expected_gb": 6.76,
         "required": False,
-        "description": "[NSFW Image Studio] CyberRealistic Pony V14.0 (Photorealistic Uncensored SDXL/Pony ~6.46GB)"
+        "description": "[NSFW Image Studio] Qwen-Image 2.1 Uncensored Omni INT8 ConvRot (~6.76GB)"
     },
     {
-        "category": "checkpoints",
-        "filename": "Juggernaut-X-RunDiffusion-NSFW.safetensors",
-        "url": "https://huggingface.co/RunDiffusion/Juggernaut-X-v10/resolve/main/Juggernaut-X-RunDiffusion-NSFW.safetensors",
-        "expected_gb": 6.62,
+        "category": "loras",
+        "filename": "chatrlabs-omni-turbo-8step-fp32.safetensors",
+        "url": "https://huggingface.co/chatrlabs/Qwen-Image-2.1-Uncensored-Omni-LoRA-v0.1/resolve/main/chatrlabs-omni-turbo-8step-fp32.safetensors",
+        "expected_gb": 0.63,
         "required": False,
-        "description": "[NSFW Image Studio] Juggernaut-X v10 RunDiffusion NSFW (Photorealistic SDXL ~6.62GB)"
+        "description": "[NSFW Image Studio] Qwen-Image 2.1 Uncensored Omni Turbo 8-Step LoRA (~0.63GB)"
+    },
+    {
+        "category": "text_encoders",
+        "filename": "qwen3vl_8b_int8_convrot.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors",
+        "expected_gb": 8.71,
+        "required": False,
+        "description": "[NSFW Image Studio] Qwen3-VL 8B Text Encoder INT8 ConvRot (~8.71GB)"
+    },
+    {
+        "category": "vae",
+        "filename": "qwen_image_2.1_vae_bf16.safetensors",
+        "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors",
+        "expected_gb": 0.63,
+        "required": False,
+        "description": "[NSFW Image Studio] Qwen-Image 2.1 VAE BF16 (~0.63GB)"
     }
 ]
 

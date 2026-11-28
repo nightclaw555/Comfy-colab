@@ -153,9 +153,10 @@ export class ComfyApiClient {
   }
 
   /**
-   * Automatically saves the rendered video to:
+   * Automatically saves the rendered video/image silently to:
    * 1. Local project `outputs/` directory (when running locally on PC)
-   * 2. Browser's Downloads folder (via Blob download so it works on both Localhost & Vercel before A100 disconnects)
+   * 2. If server disk save is unavailable, keeps an in-memory Blob URL for preview;
+   *    the user downloads manually via the gallery Download button.
    */
   static async saveVideoToLocalAndBrowser(
     baseUrl: string,
@@ -186,29 +187,20 @@ export class ComfyApiClient {
         }
       }
     } catch (e) {
-      console.warn('Could not save directly to server disk, falling back to browser download:', e);
+      console.warn('Could not save directly to server disk, keeping in-memory copy:', e);
     }
 
-    // 2. Only trigger Browser Download (Blob) as a fallback when NOT saved directly to G:\ComfyUI_Studio\outputs
-    //    (e.g. when accessing via Vercel from another device) so we don't duplicate downloads on the local PC!
+    // 2. Fallback when server disk save is unavailable (e.g. Vercel): keep an in-memory blob copy for preview/manual download only — never auto-download.
     if (!savedToDisk) {
       try {
         const mediaRes = await fetch(proxyMediaUrl);
         if (mediaRes.ok) {
           const blob = await mediaRes.blob();
           const blobUrl = URL.createObjectURL(blob);
-
-          const a = document.createElement('a');
-          a.href = blobUrl;
-          a.download = filename || `studio_video_${Date.now()}.mp4`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-
           finalVideoUrl = blobUrl;
         }
       } catch (e) {
-        console.warn('Browser fallback download failed:', e);
+        console.warn('Blob fallback fetch failed:', e);
       }
     }
 

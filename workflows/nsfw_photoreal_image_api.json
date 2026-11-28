@@ -1,25 +1,28 @@
 {
-  "1": {
-    "class_type": "CheckpointLoaderSimple",
-    "inputs": {
-      "ckpt_name": "CyberRealisticPony_V14.0.safetensors"
-    }
-  },
-  "2": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": "score_9, score_8_up, score_7_up, source_real, raw photo, photorealistic, 8k uhd, intimate sensual portrait of a gorgeous woman, natural skin texture and pores, soft bedroom lighting, shallow depth of field",
-      "clip": ["1", 1]
-    }
-  },
   "3": {
-    "class_type": "CLIPTextEncode",
+    "class_type": "CLIPLoader",
     "inputs": {
-      "text": "score_4, score_5, score_6, source_pony, source_anime, source_cartoon, 3d, cgi, bad anatomy, deformed, extra limbs, mutated hands, blurry, low quality, watermark, text, censored, mosaic",
-      "clip": ["1", 1]
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
     }
   },
   "4": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "5": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": ["3", 0],
+      "prompt": "Intimate sensual boudoir photography of a gorgeous young woman on silk sheets, alluring eye contact, hyper-detailed realistic skin pores and texture, natural anatomical proportions, warm golden bedroom rim lighting, shallow depth of field, 85mm f/1.4 lens.",
+      "negative_prompt": "",
+      "resolution": 1248
+    }
+  },
+  "9": {
     "class_type": "EmptyLatentImage",
     "inputs": {
       "width": 1024,
@@ -27,33 +30,66 @@
       "batch_size": 1
     }
   },
-  "5": {
+  "10": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen-image-2.1-step90000-INT8-ConvRot-comfy.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "11": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["10", 0],
+      "lora_name": "chatrlabs-omni-turbo-8step-fp32.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "12": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": ["11", 0],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "13": {
+    "class_type": "ModelSamplingFlux",
+    "inputs": {
+      "model": ["12", 0],
+      "max_shift": 0.6935483870967742,
+      "base_shift": 0.5,
+      "width": 1024,
+      "height": 1536
+    }
+  },
+  "14": {
     "class_type": "KSampler",
     "inputs": {
+      "model": ["13", 0],
+      "positive": ["5", 0],
+      "negative": ["5", 1],
+      "latent_image": ["9", 0],
       "seed": 42,
-      "steps": 25,
-      "cfg": 6.0,
-      "sampler_name": "dpmpp_2m_sde",
-      "scheduler": "karras",
-      "denoise": 1.0,
-      "model": ["1", 0],
-      "positive": ["2", 0],
-      "negative": ["3", 0],
-      "latent_image": ["4", 0]
+      "steps": 8,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
     }
   },
-  "6": {
+  "15": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": ["5", 0],
-      "vae": ["1", 2]
+      "samples": ["14", 0],
+      "vae": ["4", 0]
     }
   },
-  "7": {
+  "16": {
     "class_type": "SaveImage",
     "inputs": {
-      "filename_prefix": "image/NSFW_Photo_Real",
-      "images": ["6", 0]
+      "filename_prefix": "image/NSFW_Qwen21_Uncensored",
+      "images": ["15", 0]
     }
   }
 }

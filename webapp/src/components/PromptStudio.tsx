@@ -214,11 +214,12 @@ const IMAGE_RESOLUTIONS = [
   { label: '🖥️ 2K Landscape (16:9)', w: 2688, h: 1536, ratio: '16:9' as const, badge: 'Cinema' },
 ];
 
-const NSFW_SDXL_RESOLUTIONS = [
-  { label: '📱 แนวตั้ง Portrait (9:16)', w: 1024, h: 1536, ratio: '9:16' as const, badge: 'แนะนำ NSFW' },
+const NSFW_QWEN21_RESOLUTIONS = [
+  { label: '📱 แนวตั้ง Portrait (9:16)', w: 1024, h: 1536, ratio: '9:16' as const, badge: 'แนะนำ Qwen 2.1' },
   { label: '🖥️ แนวนอน Landscape (16:9)', w: 1536, h: 1024, ratio: '16:9' as const, badge: 'Cinematic' },
   { label: '⬜ จัตุรัส Square HD (1:1)', w: 1280, h: 1280, ratio: '1:1' as const, badge: 'Close-Up' },
-  { label: '📸 แนวตั้ง Studio (3:4)', w: 1152, h: 1536, ratio: '9:16' as const, badge: 'Portrait' },
+  { label: '🔥 2K Portrait Ultra (3:4)', w: 1536, h: 2048, ratio: '9:16' as const, badge: 'Native 2K' },
+  { label: '🔥 2K Square Ultra (1:1)', w: 2048, h: 2048, ratio: '1:1' as const, badge: 'Native 2K' },
 ];
 
 export const PromptStudio: React.FC<PromptStudioProps> = ({
@@ -236,7 +237,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
   const [taskMode, setTaskMode] = useState<TaskMode>('image_gen');
   const [mode, setMode] = useState<GenerationMode>('t2i');
   const [imagePrecision, setImagePrecision] = useState<ImagePrecisionMode>('auto');
-  const [nsfwImageEngine, setNsfwImageEngine] = useState<NsfwImageEngine>('cyberrealistic_pony');
+  const [nsfwImageEngine, setNsfwImageEngine] = useState<NsfwImageEngine>('qwen21_uncensored');
 
   const [positivePrompt, setPositivePrompt] = useState(IMAGE_4K_PRESETS[0].prompt);
   const [audioPrompt, setAudioPrompt] = useState(TIKTOK_PRESETS[0].audio);
@@ -361,8 +362,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
         setWidth(1024);
         setHeight(1536);
         setAspectRatio('9:16');
-        setSteps(25);
-        setCfg(6.0);
+        setSteps(8);
+        setCfg(1.0);
       }
       setPositivePrompt(NSFW_IMAGE_PRESETS[0].prompt);
     } else if (newTask === 'tiktok') {
@@ -487,9 +488,9 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
         : taskMode === 'nsfw_image'
         ? nsfwImageEngine === 'minimax_4k_nsfw'
           ? 6
-          : steps >= 12
+          : steps >= 4
           ? steps
-          : 25
+          : 8
         : steps;
 
     const effectiveImageCfg =
@@ -498,9 +499,9 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
         : taskMode === 'nsfw_image'
         ? nsfwImageEngine === 'minimax_4k_nsfw'
           ? 1.0
-          : cfg >= 3.0
+          : cfg >= 1.0
           ? cfg
-          : 6.0
+          : 1.0
         : cfg;
 
     const baseConfig: PromptConfig = {
@@ -787,12 +788,12 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                     </span>
                   </div>
                   <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white">
-                    ใหม่! 3 โมเดล NSFW
+                    ใหม่! Qwen 2.1 + 4K
                   </span>
                 </div>
                 <p className="text-xs text-rose-100/80 mt-1.5 leading-relaxed">
-                  รวมโมเดลภาพคนจริง NSFW อันดับ 1 (<strong>CyberRealistic Pony V14</strong>,{' '}
-                  <strong>Juggernaut-X NSFW</strong> & <strong>MiniMax 4K + MysticXXX</strong>) ส่งต่อทำคลิปขยับได้ทันที
+                  รองรับ <strong>Qwen-Image 2.1 Uncensored (Omni Turbo 8-Step)</strong> และ{' '}
+                  <strong>MiniMax-H3 4K + MysticXXX</strong> ส่งต่อทำคลิปขยับได้ทันที
                 </p>
               </button>
 
@@ -983,7 +984,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                   {taskMode === 'image_gen'
                     ? 'คำบรรยายภาพ 4K (พิมพ์ภาษาไทยหรืออังกฤษได้เลย)'
                     : taskMode === 'nsfw_image'
-                    ? '🔞 คำบรรยายภาพ NSFW (ระบบเติมแท็กความสมจริงให้อัตโนมัติ พิมพ์ไทย/อังกฤษได้เลย)'
+                    ? '🔞 คำบรรยายภาพ NSFW (พิมพ์ประโยคอธิบายภาพไทยหรืออังกฤษได้เลย)'
                     : 'คำบรรยายฉากและท่าทางวิดีโอ (พิมพ์ไทยหรืออังกฤษ)'}
                 </label>
 
@@ -1248,22 +1249,13 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                   <div className="space-y-1.5">
                     {[
                       {
-                        id: 'cyberrealistic_pony' as NsfwImageEngine,
-                        title: '🔥 CyberRealistic Pony V14',
-                        desc: 'ภาพคนจริง NSFW อันดับ 1 สรีระและผิวหนังสมจริงสูงสุด เจนไว ~3 วิ',
+                        id: 'qwen21_uncensored' as NsfwImageEngine,
+                        title: '🔥 Qwen-Image 2.1 Uncensored (Omni Turbo)',
+                        desc: 'Qwen 2.1 Uncensored คุณภาพสูงระดับ 2K ผิวและสรีระสมจริง รองรับ T2I & แก้ภาพ I2I เจนไว 8 Steps (~6–8 วิ)',
                         w: 1024,
                         h: 1536,
-                        steps: 25,
-                        cfg: 6.0,
-                      },
-                      {
-                        id: 'juggernaut_nsfw' as NsfwImageEngine,
-                        title: '📸 Juggernaut-X RunDiffusion NSFW',
-                        desc: 'SDXL Photography แสงเงาภาพยนตร์และผิวสมจริงระดับสตูดิโอ',
-                        w: 1024,
-                        h: 1536,
-                        steps: 25,
-                        cfg: 5.5,
+                        steps: 8,
+                        cfg: 1.0,
                       },
                       {
                         id: 'minimax_4k_nsfw' as NsfwImageEngine,
@@ -1317,7 +1309,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                   <div className="grid grid-cols-1 gap-1.5">
                     {(nsfwImageEngine === 'minimax_4k_nsfw'
                       ? IMAGE_RESOLUTIONS
-                      : NSFW_SDXL_RESOLUTIONS
+                      : NSFW_QWEN21_RESOLUTIONS
                     ).map((res, idx) => {
                       const isSelected = width === res.w && height === res.h;
                       return (
@@ -1529,10 +1521,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                 <span className="text-gray-400">โหมดที่เลือก:</span>
                 <span className="font-bold text-white">
                   {taskMode === 'nsfw_image'
-                    ? nsfwImageEngine === 'cyberrealistic_pony'
-                      ? '🔞 CyberRealistic Pony V14'
-                      : nsfwImageEngine === 'juggernaut_nsfw'
-                      ? '🔞 Juggernaut-X NSFW'
+                    ? nsfwImageEngine === 'qwen21_uncensored'
+                      ? '🔞 Qwen-Image 2.1 Uncensored'
                       : '🔞 MiniMax 4K + MysticXXX'
                     : taskMode === 'image_gen'
                     ? mode === 'i2i'
@@ -1555,8 +1545,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <div className="flex justify-between">
                 <span className="text-gray-400">เวลาเรนเดอร์บน {activeGpuLabel}:</span>
                 <span className="text-emerald-400 font-semibold">
-                  {taskMode === 'nsfw_image' && nsfwImageEngine !== 'minimax_4k_nsfw'
-                    ? '~3 – 5 วินาที / ภาพ'
+                  {taskMode === 'nsfw_image' && nsfwImageEngine === 'qwen21_uncensored'
+                    ? '~6 – 8 วินาที / ภาพ'
                     : isImageTask
                     ? '~5 – 8 วินาที / ภาพ'
                     : '~45 – 60 วินาที / คลิป'}
