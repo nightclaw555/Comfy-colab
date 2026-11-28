@@ -5,6 +5,7 @@ import path from 'path';
 // Primary target: Google Drive via Rclone (Drive X:\) or mounted drive G:\
 // Fallback: Local project's "outputs" directory if cloud drive is not mounted
 const X_DRIVE_DIR = 'X:\\ComfyUI_Studio\\outputs';
+const D_DRIVE_DIR = 'D:\\My Drive\\ComfyUI_Studio\\outputs';
 const G_DRIVE_DIR = 'G:\\ComfyUI_Studio\\outputs';
 const FALLBACK_VIDEO_DIR = path.resolve(process.cwd(), '..', 'outputs');
 
@@ -17,7 +18,14 @@ function resolveVideoDir(): string {
       }
       return X_DRIVE_DIR;
     }
-    // 2. Check G:\
+    // 2. Check D:\My Drive (Google Drive for Desktop on D:)
+    if (fs.existsSync('D:\\My Drive\\ComfyUI_Studio') || fs.existsSync('D:\\My Drive')) {
+      if (!fs.existsSync(D_DRIVE_DIR)) {
+        fs.mkdirSync(D_DRIVE_DIR, { recursive: true });
+      }
+      return D_DRIVE_DIR;
+    }
+    // 3. Check G:\
     if (fs.existsSync('G:\\ComfyUI_Studio') || fs.existsSync('G:\\')) {
       if (!fs.existsSync(G_DRIVE_DIR)) {
         fs.mkdirSync(G_DRIVE_DIR, { recursive: true });

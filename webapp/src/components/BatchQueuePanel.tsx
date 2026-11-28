@@ -41,9 +41,13 @@ export const BatchQueuePanel: React.FC<BatchQueuePanelProps> = ({
   const pendingItems = queue.filter((i) => i.status === 'pending');
   const pendingCount = pendingItems.length;
 
-  // Estimate total time: ~8 seconds per 4K image, ~55 seconds per video
+  // Estimate total time: ~8 seconds per 4K/NSFW image, ~55 seconds per video
   const estimatedSeconds = pendingItems.reduce((acc, item) => {
-    const isImg = item.config.taskMode === 'image_gen' || item.config.mode === 't2i' || item.config.mode === 'i2i';
+    const isImg =
+      item.config.taskMode === 'image_gen' ||
+      item.config.taskMode === 'nsfw_image' ||
+      item.config.mode === 't2i' ||
+      item.config.mode === 'i2i';
     return acc + (isImg ? 8 : 55);
   }, 0);
 
@@ -168,8 +172,10 @@ export const BatchQueuePanel: React.FC<BatchQueuePanelProps> = ({
             const isCompleted = item.status === 'completed';
             const isImageJob =
               item.config.taskMode === 'image_gen' ||
+              item.config.taskMode === 'nsfw_image' ||
               item.config.mode === 't2i' ||
               item.config.mode === 'i2i';
+            const isNsfwImageJob = item.config.taskMode === 'nsfw_image';
 
             return (
               <div
@@ -208,7 +214,9 @@ export const BatchQueuePanel: React.FC<BatchQueuePanelProps> = ({
                     <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400 mt-0.5">
                       <span
                         className={`px-1.5 py-0.2 rounded font-semibold ${
-                          isImageJob
+                          isNsfwImageJob
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            : isImageJob
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                             : item.config.taskMode === 'tiktok'
                             ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
@@ -217,7 +225,9 @@ export const BatchQueuePanel: React.FC<BatchQueuePanelProps> = ({
                             : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                         }`}
                       >
-                        {isImageJob
+                        {isNsfwImageJob
+                          ? '🔞 รูปภาพ NSFW'
+                          : isImageJob
                           ? '🖼️ รูปภาพ 4K'
                           : item.config.taskMode === 'tiktok'
                           ? '📱 TikTok Ad'

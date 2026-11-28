@@ -80,6 +80,22 @@ MODELS_CONFIG = [
         "expected_gb": 21.0,
         "required": False,
         "description": "[Image Studio] MiniMax-H3-Image 4K DiT Model (INT8 Fast ~21GB)"
+    },
+    {
+        "category": "checkpoints",
+        "filename": "CyberRealisticPony_V14.0.safetensors",
+        "url": "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V14.0.safetensors",
+        "expected_gb": 6.46,
+        "required": False,
+        "description": "[NSFW Image Studio] CyberRealistic Pony V14.0 (Photorealistic Uncensored SDXL/Pony ~6.46GB)"
+    },
+    {
+        "category": "checkpoints",
+        "filename": "Juggernaut-X-RunDiffusion-NSFW.safetensors",
+        "url": "https://huggingface.co/RunDiffusion/Juggernaut-X-v10/resolve/main/Juggernaut-X-RunDiffusion-NSFW.safetensors",
+        "expected_gb": 6.62,
+        "required": False,
+        "description": "[NSFW Image Studio] Juggernaut-X v10 RunDiffusion NSFW (Photorealistic SDXL ~6.62GB)"
     }
 ]
 

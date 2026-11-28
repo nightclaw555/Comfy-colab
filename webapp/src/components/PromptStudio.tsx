@@ -33,6 +33,7 @@ import {
   ExtensionStrategy,
   GenerationStyle,
   ImagePrecisionMode,
+  NsfwImageEngine,
 } from '../types';
 
 interface PromptStudioProps {
@@ -75,6 +76,33 @@ const IMAGE_4K_PRESETS = [
     prompt:
       'Edit <Picture 1> by placing the subject onto a luxury sunlit travertine stone podium surrounded by soft tropical palm shadows and crystal water ripples, studio commercial lighting, 4K.',
     mode: 'i2i' as GenerationMode,
+  },
+];
+
+const NSFW_IMAGE_PRESETS = [
+  {
+    name: '🔥 Sensual Boudoir Portrait (พอร์ตเทรตเซ็กซี่สมจริง)',
+    prompt:
+      'Intimate sensual boudoir photography of a gorgeous young woman on silk sheets, alluring eye contact, hyper-detailed realistic skin pores and texture, natural anatomical proportions, warm golden bedroom rim lighting, shallow depth of field, 85mm f/1.4 lens.',
+    mode: 't2i' as GenerationMode,
+  },
+  {
+    name: '👙 Luxury Poolside Glamour (บิกินี่/ริมสระหรู)',
+    prompt:
+      'Full body glamour photography of a stunning curvy model at a sunlit infinity pool, wet glistening skin with water droplets, natural body physics and anatomy, vibrant tropical sunlight, crystal clear reflections, ultra-photorealistic.',
+    mode: 't2i' as GenerationMode,
+  },
+  {
+    name: '💋 Artistic Nude Silhouette (ศิลปะสรีระ & แสงเงา)',
+    prompt:
+      'Fine art sensual nude photography, dramatic chiaroscuro studio rim lighting highlighting natural body curves and skin texture, soft warm shadows, artistic pose, medium format hasselblad photorealism, 8k uhd.',
+    mode: 't2i' as GenerationMode,
+  },
+  {
+    name: '🚿 Wet Skin & Steam Shower (ฉากห้องน้ำไอน้ำสมจริง)',
+    prompt:
+      'Close-up photorealistic shot in a luxury glass shower, warm steam and water droplets on glowing skin, wet hair, intimate expression, soft cinematic mood lighting, hyper-detailed skin texture.',
+    mode: 't2i' as GenerationMode,
   },
 ];
 
@@ -186,6 +214,13 @@ const IMAGE_RESOLUTIONS = [
   { label: '🖥️ 2K Landscape (16:9)', w: 2688, h: 1536, ratio: '16:9' as const, badge: 'Cinema' },
 ];
 
+const NSFW_SDXL_RESOLUTIONS = [
+  { label: '📱 แนวตั้ง Portrait (9:16)', w: 1024, h: 1536, ratio: '9:16' as const, badge: 'แนะนำ NSFW' },
+  { label: '🖥️ แนวนอน Landscape (16:9)', w: 1536, h: 1024, ratio: '16:9' as const, badge: 'Cinematic' },
+  { label: '⬜ จัตุรัส Square HD (1:1)', w: 1280, h: 1280, ratio: '1:1' as const, badge: 'Close-Up' },
+  { label: '📸 แนวตั้ง Studio (3:4)', w: 1152, h: 1536, ratio: '9:16' as const, badge: 'Portrait' },
+];
+
 export const PromptStudio: React.FC<PromptStudioProps> = ({
   onAddToQueue,
   isConnected,
@@ -201,6 +236,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
   const [taskMode, setTaskMode] = useState<TaskMode>('image_gen');
   const [mode, setMode] = useState<GenerationMode>('t2i');
   const [imagePrecision, setImagePrecision] = useState<ImagePrecisionMode>('auto');
+  const [nsfwImageEngine, setNsfwImageEngine] = useState<NsfwImageEngine>('cyberrealistic_pony');
 
   const [positivePrompt, setPositivePrompt] = useState(IMAGE_4K_PRESETS[0].prompt);
   const [audioPrompt, setAudioPrompt] = useState(TIKTOK_PRESETS[0].audio);
@@ -242,10 +278,13 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
 
   const is80GB = vramTotalMb >= 70000 || gpuName.toLowerCase().includes('80gb');
 
-  // When user clicks "Send 4K Image to Video I2V" in the Gallery
+  // When user clicks "Send 4K/NSFW Image to Video I2V" in the Gallery
   useEffect(() => {
     if (incomingImageForVideo) {
-      setTaskMode('tiktok');
+      const isNsfwImg =
+        incomingImageForVideo.filename.toLowerCase().includes('nsfw') ||
+        taskMode === 'nsfw_image';
+      setTaskMode(isNsfwImg ? 'nsfw_motion' : 'tiktok');
       setMode('i2v');
       setWidth(576);
       setHeight(1024);
@@ -278,13 +317,15 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
     }
   };
 
+  const isImageTask = taskMode === 'image_gen' || taskMode === 'nsfw_image';
+
   const handleManualTranslate = async () => {
     if (!positivePrompt.trim()) return;
     setIsTranslating(true);
     try {
       const enVisual = await translateText(positivePrompt);
       setPositivePrompt(enVisual);
-      if (taskMode !== 'image_gen' && audioPrompt.trim() && containsThai(audioPrompt)) {
+      if (!isImageTask && audioPrompt.trim() && containsThai(audioPrompt)) {
         const enAudio = await translateText(audioPrompt);
         setAudioPrompt(enAudio);
       }
@@ -304,6 +345,22 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
       setSteps(6);
       setCfg(1.0);
       setPositivePrompt(IMAGE_4K_PRESETS[0].prompt);
+    } else if (newTask === 'nsfw_image') {
+      setMode(imagePreview ? 'i2i' : 't2i');
+      if (nsfwImageEngine === 'minimax_4k_nsfw') {
+        setWidth(2160);
+        setHeight(3840);
+        setAspectRatio('9:16');
+        setSteps(6);
+        setCfg(1.0);
+      } else {
+        setWidth(1024);
+        setHeight(1536);
+        setAspectRatio('9:16');
+        setSteps(25);
+        setCfg(6.0);
+      }
+      setPositivePrompt(NSFW_IMAGE_PRESETS[0].prompt);
     } else if (newTask === 'tiktok') {
       setMode(imagePreview ? 'i2v' : 't2v');
       setWidth(576);
@@ -355,7 +412,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
     const reader = new FileReader();
     reader.onload = (ev) => {
       setImagePreview(ev.target?.result as string);
-      if (taskMode === 'image_gen') {
+      if (taskMode === 'image_gen' || taskMode === 'nsfw_image') {
         setMode('i2i');
       } else {
         setMode('i2v');
@@ -379,7 +436,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
       }
       setImagePreview(data.base64);
       setInputImageFilename(data.filename || 'remote_image.png');
-      setMode(taskMode === 'image_gen' ? 'i2i' : 'i2v');
+      setMode(taskMode === 'image_gen' || taskMode === 'nsfw_image' ? 'i2i' : 'i2v');
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -411,7 +468,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
           finalVisualPrompt = await translateText(finalVisualPrompt);
           setPositivePrompt(finalVisualPrompt);
         }
-        if (taskMode !== 'image_gen' && originalThaiAudioPrompt) {
+        if (!isImageTask && originalThaiAudioPrompt) {
           finalAudioPrompt = await translateText(finalAudioPrompt);
           setAudioPrompt(finalAudioPrompt);
         }
@@ -420,20 +477,43 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
       }
     }
 
+    const effectiveImageSteps =
+      taskMode === 'image_gen'
+        ? 6
+        : taskMode === 'nsfw_image'
+        ? nsfwImageEngine === 'minimax_4k_nsfw'
+          ? 6
+          : steps >= 12
+          ? steps
+          : 25
+        : steps;
+
+    const effectiveImageCfg =
+      taskMode === 'image_gen'
+        ? 1.0
+        : taskMode === 'nsfw_image'
+        ? nsfwImageEngine === 'minimax_4k_nsfw'
+          ? 1.0
+          : cfg >= 3.0
+          ? cfg
+          : 6.0
+        : cfg;
+
     const baseConfig: PromptConfig = {
       taskMode,
       modelEngine: taskMode,
       mode,
       imagePrecision,
+      nsfwImageEngine: taskMode === 'nsfw_image' ? nsfwImageEngine : undefined,
       generationStyle,
       positivePrompt: finalVisualPrompt,
-      audioPrompt: taskMode === 'image_gen' ? '' : finalAudioPrompt,
+      audioPrompt: isImageTask ? '' : finalAudioPrompt,
       negativePrompt,
       aspectRatio,
       width,
       height,
       frames:
-        taskMode === 'image_gen'
+        isImageTask
           ? 1
           : generationStyle === 'single_pass_take'
           ? singlePassDuration === 15
@@ -442,8 +522,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
             ? 243
             : 124
           : frames,
-      steps: taskMode === 'image_gen' ? 6 : steps,
-      cfg: taskMode === 'image_gen' ? 1.0 : cfg,
+      steps: effectiveImageSteps,
+      cfg: effectiveImageCfg,
       seed,
       randomizeSeed,
       turboLoraStrength,
@@ -455,7 +535,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
       originalThaiPrompt,
       originalThaiAudioPrompt,
       totalDurationSeconds:
-        taskMode === 'image_gen'
+        isImageTask
           ? 0
           : generationStyle === 'single_pass_take'
           ? singlePassDuration
@@ -465,7 +545,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
     // Multi-shot sequential video support
     const numSegments = Math.max(1, Math.floor(totalDuration / 5));
     if (
-      taskMode !== 'image_gen' &&
+      !isImageTask &&
       generationStyle === 'sequential_storyboard' &&
       numSegments > 1
     ) {
@@ -490,15 +570,6 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
 
     onAddToQueue(baseConfig, autoStart);
   };
-
-  const currentPresets =
-    taskMode === 'image_gen'
-      ? IMAGE_4K_PRESETS
-      : taskMode === 'tiktok'
-      ? TIKTOK_PRESETS
-      : taskMode === 'nsfw_motion'
-      ? NSFW_MOTION_PRESETS
-      : MUSIC_VIDEO_PRESETS;
 
   return (
     <div className="bg-studio-900 border border-studio-800 rounded-2xl p-5 shadow-lg space-y-5">
@@ -569,6 +640,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <div className="text-[11px] text-indigo-300">
                 {taskMode === 'image_gen'
                   ? '🖼️ สร้างภาพนิ่ง 4K (MiniMax-H3-Image)'
+                  : taskMode === 'nsfw_image'
+                  ? '🔞 สร้างภาพนิ่ง NSFW (Photoreal & 4K)'
                   : taskMode === 'tiktok'
                   ? '📱 วิดีโอโฆษณา TikTok'
                   : taskMode === 'nsfw_motion'
@@ -683,12 +756,39 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                     </span>
                   </div>
                   <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-black">
-                    ใหม่! H3-Image
+                    H3-Image 4K
                   </span>
                 </div>
                 <p className="text-xs text-gray-300 mt-1.5 leading-relaxed">
                   สร้างภาพความละเอียดสูงสุด <strong>4096×4096 (4K แท้)</strong> หรือแก้ไขภาพด้วยรูปอ้างอิงใน{' '}
                   <strong>6 Steps (~6 วินาที)</strong>
+                </p>
+              </button>
+
+              {/* Card 1B: NSFW Image Studio (Photorealistic & 4K Uncensored) */}
+              <button
+                type="button"
+                onClick={() => handleSelectTaskMode('nsfw_image')}
+                className={`w-full p-3.5 rounded-xl border text-left transition ${
+                  taskMode === 'nsfw_image'
+                    ? 'bg-gradient-to-r from-rose-600/25 via-pink-600/20 to-purple-600/20 border-rose-400 shadow-md'
+                    : 'bg-studio-900 border-studio-800 hover:border-rose-500/50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Flame className="w-4 h-4 text-rose-400" />
+                    <span className="text-sm font-bold text-white">
+                      🔞 สร้างภาพนิ่ง NSFW (Photoreal & 4K)
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white">
+                    ใหม่! 3 โมเดล NSFW
+                  </span>
+                </div>
+                <p className="text-xs text-rose-100/80 mt-1.5 leading-relaxed">
+                  รวมโมเดลภาพคนจริง NSFW อันดับ 1 (<strong>CyberRealistic Pony V14</strong>,{' '}
+                  <strong>Juggernaut-X NSFW</strong> & <strong>MiniMax 4K + MysticXXX</strong>) ส่งต่อทำคลิปขยับได้ทันที
                 </p>
               </button>
 
@@ -776,14 +876,16 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <label className="block text-xs font-semibold text-gray-300">
                 รูปแบบการตั้งต้น (Input Mode):
               </label>
-              {taskMode === 'image_gen' ? (
+              {isImageTask ? (
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setMode('t2i')}
                     className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition ${
                       mode === 't2i'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                        ? taskMode === 'nsfw_image'
+                          ? 'bg-rose-500/20 border-rose-400 text-rose-200'
+                          : 'bg-amber-500/20 border-amber-400 text-amber-200'
                         : 'bg-studio-900 border-studio-800 text-gray-400'
                     }`}
                   >
@@ -794,7 +896,9 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                     onClick={() => setMode('i2i')}
                     className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition ${
                       mode === 'i2i'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                        ? taskMode === 'nsfw_image'
+                          ? 'bg-rose-500/20 border-rose-400 text-rose-200'
+                          : 'bg-amber-500/20 border-amber-400 text-amber-200'
                         : 'bg-studio-900 border-studio-800 text-gray-400'
                     }`}
                   >
@@ -868,52 +972,33 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               </label>
             </div>
 
-            {/* Quick Presets Bar */}
-            <div className="space-y-1.5">
-              <span className="text-xs font-semibold text-gray-300 block">
-                💡 ตัวอย่างคำสั่งสำเร็จรูป (คลิกเพื่อลองใช้ได้เลย):
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {currentPresets.map((p: any, idx: number) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setPositivePrompt(p.prompt);
-                      if (p.audio) setAudioPrompt(p.audio);
-                      if (p.mode) setMode(p.mode);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-studio-900 hover:bg-indigo-600/20 text-gray-200 hover:text-indigo-200 border border-studio-800 hover:border-indigo-500/40 text-xs transition"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Main Visual Prompt Input */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-white">
                   {taskMode === 'image_gen'
                     ? 'คำบรรยายภาพ 4K (พิมพ์ภาษาไทยหรืออังกฤษได้เลย)'
+                    : taskMode === 'nsfw_image'
+                    ? '🔞 คำบรรยายภาพ NSFW (ระบบเติมแท็กความสมจริงให้อัตโนมัติ พิมพ์ไทย/อังกฤษได้เลย)'
                     : 'คำบรรยายฉากและท่าทางวิดีโอ (พิมพ์ไทยหรืออังกฤษ)'}
                 </label>
 
                 <div className="flex items-center space-x-1.5">
-                  {taskMode === 'image_gen' && mode === 'i2i' && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPositivePrompt((prev) =>
-                          prev.includes('<Picture 1>') ? prev : `Edit <Picture 1> ${prev}`
-                        )
-                      }
-                      className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold"
-                    >
-                      + แทรก &lt;Picture 1&gt;
-                    </button>
-                  )}
+                  {(taskMode === 'image_gen' ||
+                    (taskMode === 'nsfw_image' && nsfwImageEngine === 'minimax_4k_nsfw')) &&
+                    mode === 'i2i' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPositivePrompt((prev) =>
+                            prev.includes('<Picture 1>') ? prev : `Edit <Picture 1> ${prev}`
+                          )
+                        }
+                        className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold"
+                      >
+                        + แทรก &lt;Picture 1&gt;
+                      </button>
+                    )}
 
                   <button
                     type="button"
@@ -946,8 +1031,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                 <span className="text-xs font-bold text-gray-200 flex items-center space-x-1.5">
                   <Upload className="w-3.5 h-3.5 text-amber-400" />
                   <span>
-                    {taskMode === 'image_gen'
-                      ? 'รูปอ้างอิงสำหรับแก้ไขภาพ (<Picture 1>)'
+                    {isImageTask
+                      ? 'รูปอ้างอิงสำหรับแก้ไขภาพ (Image-to-Image / <Picture 1>)'
                       : 'รูปภาพต้นแบบสำหรับขยับเป็นวิดีโอ (First Frame)'}
                   </span>
                 </span>
@@ -987,8 +1072,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                         ✓ แนบรูปแล้ว: {inputImageFilename}
                       </div>
                       <div className="text-[11px] text-gray-400">
-                        {taskMode === 'image_gen'
-                          ? 'พร้อมใช้เป็น <Picture 1> สำหรับแก้ไขภาพ 4K'
+                        {isImageTask
+                          ? 'พร้อมใช้เป็นรูปต้นแบบสำหรับแก้ไขภาพ (Image-to-Image)'
                           : 'พร้อมใช้เป็นเฟรมแรกของวิดีโอ (Image-to-Video)'}
                       </div>
                     </div>
@@ -998,7 +1083,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                     onClick={() => {
                       setImagePreview(null);
                       setInputImageFilename('');
-                      setMode(taskMode === 'image_gen' ? 't2i' : 't2v');
+                      setMode(isImageTask ? 't2i' : 't2v');
                     }}
                     className="p-1.5 rounded-lg bg-studio-900 hover:bg-rose-600/20 text-gray-400 hover:text-rose-400"
                   >
@@ -1077,8 +1162,8 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               </div>
             )}
 
-            {/* Synchronized Stereo Audio Prompt (Hidden in 4K Image Mode!) */}
-            {taskMode !== 'image_gen' && (
+            {/* Synchronized Stereo Audio Prompt (Hidden in 4K/NSFW Image Mode!) */}
+            {!isImageTask && (
               <div className="bg-studio-900 border border-studio-800 rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
@@ -1148,8 +1233,135 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <span className="text-[11px] text-gray-400">พร้อมส่งเข้า GPU</span>
             </div>
 
-            {/* Resolution Selector: 4K Image vs Video */}
-            {taskMode === 'image_gen' ? (
+            {/* Resolution Selector: NSFW Image vs 4K Image vs Video */}
+            {taskMode === 'nsfw_image' ? (
+              <div className="space-y-3">
+                {/* NSFW Image Model Engine Picker */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-rose-300">
+                    🔞 เลือกโมเดลสร้างภาพ NSFW (Model Engine):
+                  </label>
+                  <div className="space-y-1.5">
+                    {[
+                      {
+                        id: 'cyberrealistic_pony' as NsfwImageEngine,
+                        title: '🔥 CyberRealistic Pony V14',
+                        desc: 'ภาพคนจริง NSFW อันดับ 1 สรีระและผิวหนังสมจริงสูงสุด เจนไว ~3 วิ',
+                        w: 1024,
+                        h: 1536,
+                        steps: 25,
+                        cfg: 6.0,
+                      },
+                      {
+                        id: 'juggernaut_nsfw' as NsfwImageEngine,
+                        title: '📸 Juggernaut-X RunDiffusion NSFW',
+                        desc: 'SDXL Photography แสงเงาภาพยนตร์และผิวสมจริงระดับสตูดิโอ',
+                        w: 1024,
+                        h: 1536,
+                        steps: 25,
+                        cfg: 5.5,
+                      },
+                      {
+                        id: 'minimax_4k_nsfw' as NsfwImageEngine,
+                        title: '💎 MiniMax-H3 4K + MysticXXX LoRA',
+                        desc: 'โมเดลภาพ 4K แท้ (สูงสุด 4096×4096) พ่วง LoRA ปลดล็อกสรีระใน 6 Steps',
+                        w: 2160,
+                        h: 3840,
+                        steps: 6,
+                        cfg: 1.0,
+                      },
+                    ].map((eng) => {
+                      const active = nsfwImageEngine === eng.id;
+                      return (
+                        <button
+                          key={eng.id}
+                          type="button"
+                          onClick={() => {
+                            setNsfwImageEngine(eng.id);
+                            setWidth(eng.w);
+                            setHeight(eng.h);
+                            setAspectRatio('9:16');
+                            setSteps(eng.steps);
+                            setCfg(eng.cfg);
+                          }}
+                          className={`w-full p-2.5 rounded-xl border text-left transition ${
+                            active
+                              ? 'bg-rose-500/20 border-rose-400 text-white shadow'
+                              : 'bg-studio-900 border-studio-800 text-gray-300 hover:border-studio-700'
+                          }`}
+                        >
+                          <div className="text-xs font-bold flex items-center justify-between">
+                            <span>{eng.title}</span>
+                            {active && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500 text-white">
+                                ใช้อยู่
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">{eng.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Resolution List for Selected NSFW Engine */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-200">
+                    📐 เลือกสัดส่วนและความละเอียดภาพ:
+                  </label>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {(nsfwImageEngine === 'minimax_4k_nsfw'
+                      ? IMAGE_RESOLUTIONS
+                      : NSFW_SDXL_RESOLUTIONS
+                    ).map((res, idx) => {
+                      const isSelected = width === res.w && height === res.h;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setWidth(res.w);
+                            setHeight(res.h);
+                            setAspectRatio(res.ratio);
+                          }}
+                          className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between transition ${
+                            isSelected
+                              ? 'bg-rose-500/20 border-rose-400 text-white font-bold'
+                              : 'bg-studio-900 border-studio-800 text-gray-300 hover:border-studio-700'
+                          }`}
+                        >
+                          <span>{res.label}</span>
+                          <span className="font-mono text-[11px] text-rose-300">
+                            {res.w}×{res.h} ({res.badge})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {nsfwImageEngine === 'minimax_4k_nsfw' && (
+                  <div className="p-2.5 rounded-xl bg-studio-900 border border-rose-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-rose-200 font-semibold">
+                        ระดับ MysticXXX Uncensored LoRA:
+                      </span>
+                      <span className="font-mono text-rose-300">{uncensoredLoraStrength.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.3}
+                      max={1.2}
+                      step={0.05}
+                      value={uncensoredLoraStrength}
+                      onChange={(e) => setUncensoredLoraStrength(parseFloat(e.target.value))}
+                      className="w-full accent-rose-500"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : taskMode === 'image_gen' ? (
               <div className="space-y-2.5">
                 <label className="block text-xs font-bold text-gray-200">
                   📐 เลือกความละเอียดภาพ (สูงสุด 4K แท้):
@@ -1312,7 +1524,13 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <div className="flex justify-between">
                 <span className="text-gray-400">โหมดที่เลือก:</span>
                 <span className="font-bold text-white">
-                  {taskMode === 'image_gen'
+                  {taskMode === 'nsfw_image'
+                    ? nsfwImageEngine === 'cyberrealistic_pony'
+                      ? '🔞 CyberRealistic Pony V14'
+                      : nsfwImageEngine === 'juggernaut_nsfw'
+                      ? '🔞 Juggernaut-X NSFW'
+                      : '🔞 MiniMax 4K + MysticXXX'
+                    : taskMode === 'image_gen'
                     ? mode === 'i2i'
                       ? '🪄 แก้ไขภาพ 4K (I2I)'
                       : '🖼️ สร้างภาพนิ่ง 4K (T2I)'
@@ -1322,13 +1540,22 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
               <div className="flex justify-between">
                 <span className="text-gray-400">ความละเอียด:</span>
                 <span className="font-mono text-indigo-300">
-                  {width}×{height} ({taskMode === 'image_gen' ? '6 Steps' : `${steps} Steps`})
+                  {width}×{height} (
+                  {taskMode === 'image_gen' ||
+                  (taskMode === 'nsfw_image' && nsfwImageEngine === 'minimax_4k_nsfw')
+                    ? '6 Steps'
+                    : `${steps} Steps`}
+                  )
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">เวลาเรนเดอร์บน A100:</span>
                 <span className="text-emerald-400 font-semibold">
-                  {taskMode === 'image_gen' ? '~5 – 8 วินาที / ภาพ' : '~45 – 60 วินาที / คลิป'}
+                  {taskMode === 'nsfw_image' && nsfwImageEngine !== 'minimax_4k_nsfw'
+                    ? '~3 – 5 วินาที / ภาพ'
+                    : isImageTask
+                    ? '~5 – 8 วินาที / ภาพ'
+                    : '~45 – 60 วินาที / คลิป'}
                 </span>
               </div>
             </div>
@@ -1350,7 +1577,9 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                   <>
                     <Play className="w-4 h-4 fill-current" />
                     <span>
-                      {taskMode === 'image_gen'
+                      {taskMode === 'nsfw_image'
+                        ? '🔞 สร้างภาพ NSFW ทันที (Render Now)'
+                        : taskMode === 'image_gen'
                         ? '🚀 สร้างภาพ 4K ทันที (Render Now)'
                         : '🚀 สร้างวิดีโอทันที (Render Now)'}
                     </span>

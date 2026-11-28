@@ -3,8 +3,14 @@ import { PromptConfig } from '../types';
 export function buildComfyPrompt(config: PromptConfig): Record<string, any> {
   const mode = config.taskMode || (config.modelEngine as any) || 'tiktok';
 
+  if (mode === 'nsfw_image') {
+    if (config.nsfwImageEngine === 'minimax_4k_nsfw') {
+      return buildImageGenWorkflow(config, true);
+    }
+    return buildNsfwPhotorealImageWorkflow(config);
+  }
   if (mode === 'image_gen' || config.mode === 't2i' || config.mode === 'i2i') {
-    return buildImageGenWorkflow(config);
+    return buildImageGenWorkflow(config, false);
   }
   if (mode === 'nsfw_motion') {
     return buildNsfwMotionWorkflow(config);
@@ -540,7 +546,7 @@ function buildMusicVideoWorkflow(config: PromptConfig): Record<string, any> {
 // -------------------------------------------------------------
 // 4. MiniMax-H3-Image Workflow (4K Ultra-HD Text-to-Image & Multi-Ref Edit in 6 Steps)
 // -------------------------------------------------------------
-function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
+function buildImageGenWorkflow(config: PromptConfig, enableUncensoredLora: boolean = false): Record<string, any> {
   const seed = config.randomizeSeed
     ? Math.floor(Math.random() * 9007199254740991)
     : (config.seed || 42);
@@ -558,6 +564,9 @@ function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
   } else if (config.imagePrecision === 'bf16_80gb') {
     unetName = 'minimax_h3_image_pruned_bf16.safetensors';
   }
+
+  const useNsfwLora = enableUncensoredLora || config.taskMode === 'nsfw_image';
+  const activeModelNode = useNsfwLora ? '12_lora' : '12';
 
   const graph: Record<string, any> = {
     // 24-Channel Image VAE
@@ -599,7 +608,7 @@ function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
     "14": {
       "class_type": "BasicGuider",
       "inputs": {
-        "model": ["12", 0],
+        "model": [activeModelNode, 0],
         "conditioning": ["13", 0]
       }
     },
@@ -624,7 +633,7 @@ function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
         "scheduler": "simple",
         "steps": config.steps || 6,
         "denoise": 1.0,
-        "model": ["12", 0]
+        "model": [activeModelNode, 0]
       }
     },
     // Advanced Sampler
@@ -650,11 +659,22 @@ function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
     "20": {
       "class_type": "SaveImage",
       "inputs": {
-        "filename_prefix": "image/MiniMax_H3_4K",
+        "filename_prefix": useNsfwLora ? "image/NSFW_4K_MiniMax" : "image/MiniMax_H3_4K",
         "images": ["19", 0]
       }
     }
   };
+
+  if (useNsfwLora) {
+    graph["12_lora"] = {
+      "class_type": "LoraLoaderModelOnly",
+      "inputs": {
+        "model": ["12", 0],
+        "lora_name": "MysticXXX_MMH3-V4.safetensors",
+        "strength_model": config.uncensoredLoraStrength ?? 0.85
+      }
+    };
+  }
 
   // Image Editing / Reference Mode (if user attached an image)
   if ((config.mode === 'i2i' || config.mode === 'i2v') && config.inputImageFilename && config.inputImageFilename.trim() !== '' && config.inputImageFilename !== 'input.png') {
@@ -665,6 +685,141 @@ function buildImageGenWorkflow(config: PromptConfig): Record<string, any> {
       }
     };
     graph["13"]["inputs"]["image_1"] = ["21", 0];
+  }
+
+  return graph;
+}
+
+// -------------------------------------------------------------
+// 5. NSFW Photorealistic Image Workflow (CyberRealistic Pony V14 & Juggernaut-X NSFW)
+// -------------------------------------------------------------
+function buildNsfwPhotorealImageWorkflow(config: PromptConfig): Record<string, any> {
+  const seed = config.randomizeSeed
+    ? Math.floor(Math.random() * 9007199254740991)
+    : (config.seed || 42);
+
+  const engine = config.nsfwImageEngine || 'cyberrealistic_pony';
+  const ckptName =
+    engine === 'juggernaut_nsfw'
+      ? 'Juggernaut-X-RunDiffusion-NSFW.safetensors'
+      : 'CyberRealisticPony_V14.0.safetensors';
+
+  // Keep SDXL/Pony resolution in optimal anatomical range (multiples of 32, max 1536)
+  let safeWidth = Math.max(768, Math.floor((config.width || 1024) / 32) * 32);
+  let safeHeight = Math.max(768, Math.floor((config.height || 1536) / 32) * 32);
+  if (safeWidth > 1536 || safeHeight > 1536) {
+    if (safeWidth > safeHeight) {
+      safeWidth = 1536;
+      safeHeight = 1024;
+    } else if (safeHeight > safeWidth) {
+      safeWidth = 1024;
+      safeHeight = 1536;
+    } else {
+      safeWidth = 1280;
+      safeHeight = 1280;
+    }
+  }
+
+  const rawPrompt = (config.positivePrompt || '').trim();
+  const hasScoreTags = rawPrompt.toLowerCase().includes('score_9');
+  const positiveText =
+    engine === 'cyberrealistic_pony'
+      ? hasScoreTags
+        ? rawPrompt
+        : `score_9, score_8_up, score_7_up, source_real, raw photo, photorealistic, 8k uhd, hyper-detailed skin texture and pores, natural anatomical proportions, ${rawPrompt}`
+      : `raw photo, photorealistic, 8k uhd, masterpiece, ultra-detailed skin texture and pores, natural lighting, ${rawPrompt}`;
+
+  const defaultNeg =
+    'score_4, score_5, score_6, source_pony, source_anime, source_cartoon, 3d, cgi, bad anatomy, bad hands, deformed, extra limbs, extra fingers, mutated hands, blurry, low quality, watermark, text, signature, censored, mosaic, bar censor';
+  const negativeText =
+    config.negativePrompt && config.negativePrompt.trim()
+      ? `${defaultNeg}, ${config.negativePrompt.trim()}`
+      : defaultNeg;
+
+  const hasInputImage =
+    (config.mode === 'i2i' || config.mode === 'i2v') &&
+    config.inputImageFilename &&
+    config.inputImageFilename.trim() !== '' &&
+    config.inputImageFilename !== 'input.png';
+
+  const steps = config.steps && config.steps >= 12 ? config.steps : 25;
+  const cfg = config.cfg && config.cfg >= 3.0 ? config.cfg : (engine === 'juggernaut_nsfw' ? 5.5 : 6.0);
+
+  const graph: Record<string, any> = {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": ckptName
+      }
+    },
+    "2": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": positiveText,
+        "clip": ["1", 1]
+      }
+    },
+    "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": negativeText,
+        "clip": ["1", 1]
+      }
+    },
+    "5": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed,
+        "steps": steps,
+        "cfg": cfg,
+        "sampler_name": "dpmpp_2m_sde",
+        "scheduler": "karras",
+        "denoise": hasInputImage ? 0.72 : 1.0,
+        "model": ["1", 0],
+        "positive": ["2", 0],
+        "negative": ["3", 0],
+        "latent_image": ["4", 0]
+      }
+    },
+    "6": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["5", 0],
+        "vae": ["1", 2]
+      }
+    },
+    "7": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": engine === 'juggernaut_nsfw' ? "image/NSFW_Juggernaut_XL" : "image/NSFW_Photo_Real",
+        "images": ["6", 0]
+      }
+    }
+  };
+
+  if (hasInputImage) {
+    graph["8"] = {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": config.inputImageFilename
+      }
+    };
+    graph["4"] = {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": ["8", 0],
+        "vae": ["1", 2]
+      }
+    };
+  } else {
+    graph["4"] = {
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "width": safeWidth,
+        "height": safeHeight,
+        "batch_size": 1
+      }
+    };
   }
 
   return graph;

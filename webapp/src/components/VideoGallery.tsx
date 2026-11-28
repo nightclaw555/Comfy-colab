@@ -45,6 +45,7 @@ function isImageFile(filenameOrUrl?: string): boolean {
     lower.endsWith('.jpeg') ||
     lower.endsWith('.webp') ||
     lower.includes('filename=minimax_h3_4k') ||
+    lower.includes('filename=nsfw_') ||
     lower.includes('image%2f')
   );
 }
@@ -203,6 +204,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
   const activeIsImage = activeJob
     ? activeJob.config.taskMode === 'image_gen' ||
+      activeJob.config.taskMode === 'nsfw_image' ||
       activeJob.config.mode === 't2i' ||
       activeJob.config.mode === 'i2i' ||
       isImageFile(activeJob.outputFilename || activeJob.outputVideoUrl)
@@ -213,6 +215,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   const filteredCompleted = completedItems.filter((item) => {
     const isImg =
       item.config.taskMode === 'image_gen' ||
+      item.config.taskMode === 'nsfw_image' ||
       item.config.mode === 't2i' ||
       item.config.mode === 'i2i' ||
       isImageFile(item.outputFilename || item.outputVideoUrl);
@@ -334,12 +337,18 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
-                    activeIsImage
+                    activeJob.config.taskMode === 'nsfw_image'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : activeIsImage
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                   }`}
                 >
-                  {activeIsImage ? '🖼️ 4K Image (MiniMax-H3-Image)' : `🎬 ${activeJob.config.mode.toUpperCase()}`}
+                  {activeJob.config.taskMode === 'nsfw_image'
+                    ? '🔞 NSFW Image Studio'
+                    : activeIsImage
+                    ? '🖼️ 4K Image (MiniMax-H3-Image)'
+                    : `🎬 ${activeJob.config.mode.toUpperCase()}`}
                 </span>
                 <span className="text-xs text-gray-400">
                   {activeJob.config.width}×{activeJob.config.height} • {activeJob.config.steps} Steps
