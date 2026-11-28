@@ -37,6 +37,8 @@ GDRIVE_DEST_DIR = os.environ.get("GDRIVE_OUTPUT_DIR", "/content/drive/MyDrive/Co
 RCLONE_CONF_PATH = os.environ.get("RCLONE_CONF_PATH", "/content/rclone.conf")
 RCLONE_REMOTE_DEST = os.environ.get("RCLONE_REMOTE_DEST", "mygdrive:ComfyUI_Studio/outputs")
 _SYNCED_FILES: dict[str, tuple[int, float]] = {}
+_NATIVE_SYNCED_FILES: dict[str, tuple[int, float]] = {}
+_DELETED_FILES: set[str] = set()
 _SYNC_LOCK = threading.Lock()
 
 
@@ -52,6 +54,8 @@ def sync_outputs_to_gdrive(force_all: bool = False):
                 os.makedirs(GDRIVE_DEST_DIR, exist_ok=True)
                 for root, dirs, files in os.walk(OUTPUT_DIR):
                     for fname in files:
+                        if fname in _DELETED_FILES:
+                            continue
                         if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
                             continue
                         src_f = os.path.join(root, fname)
@@ -59,6 +63,10 @@ def sync_outputs_to_gdrive(force_all: bool = False):
                             continue
                         src_stat = os.stat(src_f)
                         if src_stat.st_size <= 1024 or (time.time() - src_stat.st_mtime) < 1.0:
+                            continue
+
+                        sig = (src_stat.st_size, src_stat.st_mtime)
+                        if not force_all and _NATIVE_SYNCED_FILES.get(src_f) == sig:
                             continue
 
                         # Categorize: picture for images, video for videos
@@ -71,6 +79,7 @@ def sync_outputs_to_gdrive(force_all: bool = False):
                         if not os.path.exists(dst_f) or os.stat(dst_f).st_size != src_stat.st_size:
                             shutil.copy2(src_f, dst_f)
                             print(f"[Google Drive Auto-Sync] Saved {fname} ({src_stat.st_size / (1024*1024):.2f} MB) -> {dst_f}")
+                        _NATIVE_SYNCED_FILES[src_f] = sig
             except Exception as e:
                 print(f"[Google Drive Auto-Sync] Warning: {e}")
 
@@ -94,6 +103,8 @@ def sync_outputs_to_gdrive(force_all: bool = False):
 
                 for root, dirs, files in os.walk(OUTPUT_DIR):
                     for fname in files:
+                        if fname in _DELETED_FILES:
+                            continue
                         if not fname.lower().endswith((".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")):
                             continue
                         fpath = os.path.join(root, fname)
@@ -333,6 +344,84 @@ def get_output_file(filename: str):
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
+
+
+class DeleteOutputsRequest(BaseModel):
+    filename: Optional[str] = None
+    all: bool = False
+
+
+def _delete_outputs_impl(filename: Optional[str] = None, clear_all: bool = False):
+    media_exts = (".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")
+    deleted_count = 0
+    with _SYNC_LOCK:
+        target_roots = [OUTPUT_DIR, GDRIVE_DEST_DIR]
+        if clear_all:
+            for base_dir in target_roots:
+                if not os.path.exists(base_dir):
+                    continue
+                for root, _, files in os.walk(base_dir):
+                    for f in files:
+                        fl = f.lower()
+                        if fl.endswith(media_exts) or any(fl.endswith(f"{ext}.json") for ext in media_exts):
+                            try:
+                                os.remove(os.path.join(root, f))
+                                if fl.endswith(media_exts):
+                                    _DELETED_FILES.add(f)
+                                    deleted_count += 1
+                            except Exception:
+                                pass
+            if os.path.exists(RCLONE_CONF_PATH) and shutil.which("rclone"):
+                try:
+                    subprocess.run(
+                        ["rclone", "delete", RCLONE_REMOTE_DEST, "--config", RCLONE_CONF_PATH, "--quiet"],
+                        timeout=30,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+            return {"success": True, "deleted_count": deleted_count}
+
+        if filename:
+            safe_name = os.path.basename(filename)
+            _DELETED_FILES.add(safe_name)
+            for base_dir in target_roots:
+                if not os.path.exists(base_dir):
+                    continue
+                for root, _, files in os.walk(base_dir):
+                    for target_name in (safe_name, f"{safe_name}.json"):
+                        if target_name in files:
+                            try:
+                                os.remove(os.path.join(root, target_name))
+                                if target_name == safe_name:
+                                    deleted_count += 1
+                            except Exception:
+                                pass
+            if os.path.exists(RCLONE_CONF_PATH) and shutil.which("rclone"):
+                is_img = safe_name.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                sub_dir = "picture" if is_img else "video"
+                for remote_path in (f"{RCLONE_REMOTE_DEST}/{sub_dir}/{safe_name}", f"{RCLONE_REMOTE_DEST}/{safe_name}"):
+                    try:
+                        subprocess.run(
+                            ["rclone", "deletefile", remote_path, "--config", RCLONE_CONF_PATH, "--quiet"],
+                            timeout=20,
+                            check=False,
+                        )
+                    except Exception:
+                        pass
+            return {"success": True, "deleted_count": deleted_count}
+
+    return {"success": False, "error": "Provide filename or all=true"}
+
+
+@app.post("/outputs/delete")
+def post_delete_outputs(req: DeleteOutputsRequest):
+    return _delete_outputs_impl(filename=req.filename, clear_all=req.all)
+
+
+@app.delete("/outputs")
+def delete_all_outputs(file: Optional[str] = None, all: bool = False):
+    return _delete_outputs_impl(filename=file, clear_all=all)
 
 
 class MergeVideosRequest(BaseModel):

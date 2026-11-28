@@ -24,6 +24,7 @@ import {
   Columns,
 } from 'lucide-react';
 import { QueueItem } from '../types';
+import { ComfyApiClient } from '../lib/comfyApi';
 import { MergeModal, VideoOption } from './MergeModal';
 
 interface VideoGalleryProps {
@@ -31,6 +32,7 @@ interface VideoGalleryProps {
   sidecarUrl?: string;
   onSendImageToVideo?: (imageUrl: string, filename: string, promptText?: string) => void;
   onClearQueueHistory?: () => void;
+  onDeleteQueueItem?: (itemId: string, filename?: string) => void;
 }
 
 interface LocalMediaFile {
@@ -84,6 +86,7 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
   sidecarUrl = '',
   onSendImageToVideo,
   onClearQueueHistory,
+  onDeleteQueueItem,
 }) => {
   const [localFiles, setLocalFiles] = useState<LocalMediaFile[]>([]);
   const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video'>('all');
@@ -342,13 +345,21 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
 
     setIsDeleting(true);
     try {
-      await fetch('/api/gdrive-videos?all=true', { method: 'DELETE' });
+      const [localRes] = await Promise.all([
+        fetch('/api/gdrive-videos?all=true', { method: 'DELETE' }),
+        sidecarUrl ? ComfyApiClient.deleteRemoteOutput(sidecarUrl, undefined, true) : Promise.resolve(null),
+      ]);
+      const localData = await localRes.json().catch(() => ({}));
+      if (!localRes.ok || localData.success === false) {
+        alert(`แจ้งเตือนการลบไฟล์ในเครื่อง: ${localData.message || localData.error || 'ไม่สามารถลบไฟล์ทั้งหมดได้'}`);
+      }
       if (onClearQueueHistory) {
         onClearQueueHistory();
       }
       setLocalFiles([]);
       setActiveId(null);
       setIsLightboxOpen(false);
+      fetchLocalFiles();
     } catch (e: any) {
       alert(`เกิดข้อผิดพลาดในการลบ: ${e.message}`);
     } finally {
@@ -356,16 +367,43 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
     }
   };
 
-  const handleDeleteSingle = async (filename: string) => {
-    const confirmed = window.confirm(`ลบไฟล์ ${filename} ออกจากประวัติและเครื่องอย่างถาวรหรือไม่?`);
+  const handleDeleteSingle = async (item: GalleryMediaItem) => {
+    const label = item.filename || item.prompt || 'รายการนี้';
+    const confirmed = window.confirm(`ลบ ${label} ออกจากประวัติและเครื่องอย่างถาวรหรือไม่?`);
     if (!confirmed) return;
 
     try {
-      await fetch(`/api/gdrive-videos?file=${encodeURIComponent(filename)}`, { method: 'DELETE' });
-      fetchLocalFiles();
-      if (activeMedia?.filename === filename) {
-        setActiveId(null);
+      let localOk = true;
+      let localErrMsg = '';
+      if (item.filename) {
+        const [localRes] = await Promise.all([
+          fetch(`/api/gdrive-videos?file=${encodeURIComponent(item.filename)}`, { method: 'DELETE' }),
+          sidecarUrl ? ComfyApiClient.deleteRemoteOutput(sidecarUrl, item.filename, false) : Promise.resolve(null),
+        ]);
+        const localData = await localRes.json().catch(() => ({}));
+        if (!localRes.ok || localData.success === false) {
+          localOk = false;
+          localErrMsg = localData.message || localData.error || 'ไม่พบไฟล์ในโฟลเดอร์ outputs';
+        }
       }
+
+      if (item.source === 'local' && !localOk) {
+        alert(`ไม่สามารถลบไฟล์ ${item.filename} ได้: ${localErrMsg}`);
+        fetchLocalFiles();
+        return;
+      }
+
+      if (onDeleteQueueItem) {
+        onDeleteQueueItem(item.queueItem?.id || item.id, item.filename);
+      }
+      if (item.filename) {
+        setLocalFiles((prev) => prev.filter((lf) => lf.filename !== item.filename));
+      }
+      if (activeMedia?.id === item.id) {
+        setActiveId(null);
+        setIsLightboxOpen(false);
+      }
+      fetchLocalFiles();
     } catch (e: any) {
       alert(`เกิดข้อผิดพลาด: ${e.message}`);
     }
@@ -926,16 +964,14 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                     </button>
                   )}
 
-                  {activeMedia.filename && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSingle(activeMedia.filename!)}
-                      className="p-2 rounded-xl bg-rose-600/15 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs transition"
-                      title="ลบไฟล์นี้ทิ้งถาวร"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSingle(activeMedia)}
+                    className="p-2 rounded-xl bg-rose-600/15 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs transition"
+                    title="ลบไฟล์นี้ทิ้งถาวร"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -1126,16 +1162,14 @@ export const VideoGallery: React.FC<VideoGalleryProps> = ({
                       <Download className="w-3.5 h-3.5" />
                     </a>
 
-                    {item.filename && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSingle(item.filename!)}
-                        title="ลบไฟล์"
-                        className="p-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-300 hover:text-white transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSingle(item)}
+                      title="ลบไฟล์"
+                      className="p-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-300 hover:text-white transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 

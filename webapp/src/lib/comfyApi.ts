@@ -80,6 +80,19 @@ export class ComfyApiClient {
     return this.proxyRequest(`${cleanUrl}/shutdown`, 'POST', {});
   }
 
+  static async deleteRemoteOutput(sidecarUrl: string, filename?: string, clearAll: boolean = false) {
+    if (!sidecarUrl) return null;
+    try {
+      const cleanUrl = sidecarUrl.replace(/\/+$/, '');
+      return await this.proxyRequest(`${cleanUrl}/outputs/delete`, 'POST', {
+        filename,
+        all: clearAll,
+      });
+    } catch {
+      return null;
+    }
+  }
+
   static async getComfyLogs(sidecarUrl: string, lines: number = 150): Promise<{
     exists: boolean;
     logs: string;

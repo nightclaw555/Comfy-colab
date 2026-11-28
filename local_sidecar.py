@@ -230,6 +230,56 @@ def get_output_file(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
 
+
+class DeleteOutputsRequest(BaseModel):
+    filename: Optional[str] = None
+    all: bool = False
+
+
+def _delete_local_outputs(filename: Optional[str] = None, clear_all: bool = False):
+    media_exts = (".mp4", ".webm", ".mkv", ".png", ".jpg", ".jpeg", ".webp")
+    deleted_count = 0
+    if not os.path.exists(OUTPUT_DIR):
+        return {"success": True, "deleted_count": 0}
+
+    if clear_all:
+        for root, _, files in os.walk(OUTPUT_DIR):
+            for f in files:
+                fl = f.lower()
+                if fl.endswith(media_exts) or any(fl.endswith(f"{ext}.json") for ext in media_exts):
+                    try:
+                        os.remove(os.path.join(root, f))
+                        if fl.endswith(media_exts):
+                            deleted_count += 1
+                    except Exception:
+                        pass
+        return {"success": True, "deleted_count": deleted_count}
+
+    if filename:
+        safe_name = os.path.basename(filename)
+        for root, _, files in os.walk(OUTPUT_DIR):
+            for target_name in (safe_name, f"{safe_name}.json"):
+                if target_name in files:
+                    try:
+                        os.remove(os.path.join(root, target_name))
+                        if target_name == safe_name:
+                            deleted_count += 1
+                    except Exception:
+                        pass
+        return {"success": True, "deleted_count": deleted_count}
+
+    return {"success": False, "error": "Provide filename or all=true"}
+
+
+@app.post("/outputs/delete")
+def post_delete_outputs(req: DeleteOutputsRequest):
+    return _delete_local_outputs(filename=req.filename, clear_all=req.all)
+
+
+@app.delete("/outputs")
+def delete_outputs(file: Optional[str] = None, all: bool = False):
+    return _delete_local_outputs(filename=file, clear_all=all)
+
 # ---------------------------------------------------------------------------
 # FFmpeg Video Operations
 # ---------------------------------------------------------------------------

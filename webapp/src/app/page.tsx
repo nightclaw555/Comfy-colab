@@ -573,6 +573,13 @@ export default function StudioDashboard() {
               completedItems={completedVideos}
               sidecarUrl={connection.sidecarUrl}
               onClearQueueHistory={() => setQueue((prev) => prev.filter((item) => item.status !== 'completed'))}
+              onDeleteQueueItem={(id, filename) =>
+                setQueue((prev) =>
+                  prev.filter(
+                    (item) => item.id !== id && (!filename || item.outputFilename !== filename)
+                  )
+                )
+              }
               onSendImageToVideo={(imageUrl, filename, promptText) => {
                 setIncomingImageForVideo({
                   url: imageUrl,
