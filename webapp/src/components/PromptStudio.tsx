@@ -277,6 +277,10 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const is80GB = vramTotalMb >= 70000 || gpuName.toLowerCase().includes('80gb');
+  const activeGpuLabel =
+    gpuName && !gpuName.toLowerCase().includes('unavailable')
+      ? gpuName.replace(/^NVIDIA\s+/i, '').trim()
+      : 'GPU';
 
   // When user clicks "Send 4K/NSFW Image to Video I2V" in the Gallery
   useEffect(() => {
@@ -1404,7 +1408,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                     className="w-full rounded-xl bg-studio-900 border border-studio-800 px-3 py-2 text-xs text-white"
                   >
                     <option value="auto">
-                      🤖 Auto-Select ตามการ์ดจอ Colab ({is80GB ? 'A100 80GB = BF16' : 'BF16 / INT8'})
+                      🤖 Auto-Select ตามการ์ดจอ Colab ({is80GB ? `${activeGpuLabel} = BF16` : gpuName ? `${activeGpuLabel} = INT8` : 'BF16 / INT8'})
                     </option>
                     <option value="bf16_80gb">
                       💎 บังคับ Master BF16 (40.2GB — คมชัดสูงสุดสำหรับ A100 80GB)
@@ -1549,7 +1553,7 @@ export const PromptStudio: React.FC<PromptStudioProps> = ({
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">เวลาเรนเดอร์บน A100:</span>
+                <span className="text-gray-400">เวลาเรนเดอร์บน {activeGpuLabel}:</span>
                 <span className="text-emerald-400 font-semibold">
                   {taskMode === 'nsfw_image' && nsfwImageEngine !== 'minimax_4k_nsfw'
                     ? '~3 – 5 วินาที / ภาพ'

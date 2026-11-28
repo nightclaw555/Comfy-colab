@@ -22,13 +22,19 @@ interface ConsoleDrawerProps {
   sidecarUrl: string;
   isSidecarConnected: boolean;
   isRendering?: boolean;
+  gpuName?: string;
 }
 
 export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
   sidecarUrl,
   isSidecarConnected,
   isRendering = false,
+  gpuName,
 }) => {
+  const gpuLabel =
+    gpuName && !gpuName.toLowerCase().includes('unavailable')
+      ? gpuName.replace(/^NVIDIA\s+/i, '').trim()
+      : 'GPU';
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<string>(
     isSidecarConnected
@@ -106,11 +112,14 @@ export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Filter lines
-  const displayLines = logs.split('\n').filter((line) => {
-    if (!filterText.trim()) return true;
-    return line.toLowerCase().includes(filterText.toLowerCase());
-  });
+  // Strip ANSI escape codes and filter lines
+  const displayLines = logs
+    .split('\n')
+    .map((line) => line.replace(/\x1b\[[0-9;]*m/g, ''))
+    .filter((line) => {
+      if (!filterText.trim()) return true;
+      return line.toLowerCase().includes(filterText.toLowerCase());
+    });
 
   // Calculate drawer height
   const heightClass =
@@ -341,7 +350,7 @@ export const ConsoleDrawer: React.FC<ConsoleDrawerProps> = ({
             </div>
 
             <span className="text-gray-500 text-[10px]">
-              {isRendering ? '⚡ Generating on A100...' : 'Idle'}
+              {isRendering ? `⚡ Generating on ${gpuLabel}...` : 'Idle'}
             </span>
           </div>
         </div>

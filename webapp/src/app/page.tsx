@@ -107,14 +107,15 @@ export default function StudioDashboard() {
       return;
     }
 
+    const activeGpuName = connection.gpuStats?.name || 'Colab GPU';
     const confirm = window.confirm(
-      'Are you sure you want to unassign Google Colab A100 runtime now? This will terminate the instance to stop charging compute units.'
+      `Are you sure you want to unassign Google Colab (${activeGpuName}) runtime now? This will terminate the instance to stop charging compute units.`
     );
     if (!confirm) return;
 
     try {
       await ComfyApiClient.triggerShutdown(connection.sidecarUrl);
-      showNotification('Google Colab A100 runtime disconnect signal sent. Instance unassigned!', 'success');
+      showNotification(`Google Colab (${activeGpuName}) runtime disconnect signal sent. Instance unassigned!`, 'success');
       setConnection((prev) => ({
         ...prev,
         isConnected: false,
@@ -471,7 +472,7 @@ export default function StudioDashboard() {
     // Only shutdown IF user explicitly enabled it AND at least one job finished successfully AND no errors occurred!
     if (autoShutdownOnFinish && anySuccess && !anyFailed && connection.isSidecarConnected && connection.sidecarUrl) {
       showNotification(
-        'Queue finished successfully! Auto-Disconnecting A100 to save compute units...',
+        `Queue finished successfully! Auto-Disconnecting ${connection.gpuStats?.name || 'Colab GPU'} to save compute units...`,
         'warn'
       );
       try {
@@ -604,7 +605,7 @@ export default function StudioDashboard() {
       </main>
 
       <footer className="border-t border-studio-850 py-4 text-center text-xs text-gray-500">
-        MiniMax-H3 Turbo Studio • High-Performance Colab A100 SSD Pipeline • Zero-Drive Direct Local Save
+        MiniMax-H3 Turbo Studio • High-Performance Colab GPU SSD Pipeline • Zero-Drive Direct Local Save
       </footer>
 
       {/* Real-time Colab Console Drawer */}
@@ -612,6 +613,7 @@ export default function StudioDashboard() {
         sidecarUrl={connection.sidecarUrl}
         isSidecarConnected={connection.isSidecarConnected}
         isRendering={isProcessing}
+        gpuName={connection.gpuStats?.name}
       />
     </div>
   );
